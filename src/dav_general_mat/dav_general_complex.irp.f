@@ -723,3 +723,30 @@ subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n)
 
 end
 
+BEGIN_PROVIDER [ complex*16, H_matrix_all_dets_complex,(N_det,N_det) ]
+  use bitmasks
+ implicit none
+ BEGIN_DOC
+ ! |H| matrix on the basis of the Slater determinants defined by psi_det
+ END_DOC
+ integer :: i,j,k
+ double precision :: hij, c
+ integer :: degree(N_det),idx(0:N_det)
+ call  i_H_j(psi_det(1,1,1),psi_det(1,1,1),N_int,hij)
+ print*,'Providing the H_matrix_all_dets_complex ...'
+ !$OMP PARALLEL DO SCHEDULE(GUIDED) DEFAULT(NONE) PRIVATE(i,j,c,hij,degree,idx,k) &
+ !$OMP SHARED (N_det, psi_det, N_int,H_matrix_all_dets_complex)
+ do i =1,N_det
+   do j = i, N_det
+    call  i_H_j(psi_det(1,1,i),psi_det(1,1,j),N_int,hij)
+    call random_number(c)
+    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.1d0*c)
+    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.1d0*c)
+  enddo
+  H_matrix_all_dets_complex(i,i) += dcmplx(0.0,0.1d0)
+  !H_matrix_all_dets_complex(i,i) = H_matrix_all_dets_complex(i,i) + (0d0, 1d-2)
+ enddo
+ !$OMP END PARALLEL DO
+ print*,'H_matrix_all_dets_complex done '
+END_PROVIDER
+
