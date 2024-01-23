@@ -41,7 +41,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   double precision               :: cpu, wall
   integer                        :: shift, shift2, itermax, istate
   double precision               :: r1, r2, alpha
-  integer                        :: nproc_target
+  integer                        :: nproc_target, info
   integer                        :: order(N_st_diag_in)
   double precision               :: cmax
   complex*16      , allocatable  :: U(:,:), overlap(:,:)!, S_d(:,:)
@@ -292,7 +292,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       !print*,'diag'
       !print*,'h',h
       !call lapack_diag(lambda,y,h,size(h,1),shift2)
-      call diag_general_complex(lambda,y,h,size(h,1),shift2)
+      call diag_general_complex(lambda,y,h,size(h,1),shift2,info)
       !print*,'diag'
       !write(*,'(100(F11.6))') lambda(1:shift2)
 
@@ -335,12 +335,12 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
 
       ! Check convergence
       if (iter > 1) then
-          converged = dabs(maxval(REALPART(residual_norm(1:N_st)))) < threshold_davidson
+          converged = dabs(maxval(dble(residual_norm(1:N_st)))) < threshold_davidson
       endif   
       
 
       do k=1,N_st
-        if (REALPART(residual_norm(k)) > 1.e8) then
+        if (dble(residual_norm(k)) > 1.e8) then
           print *, 'Davidson failed'
           stop -1
         endif
@@ -380,7 +380,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       do while ((k<sze).and.(U(k,j) == (0.d0,0d0)))
         k = k+1
       enddo
-      if (REALPART(U(k,j) * u_in(k,j)) < 0.d0) then
+      if (dble(U(k,j) * u_in(k,j)) < 0.d0) then
         do i=1,sze
           W(i,j) = -W(i,j)
         enddo
@@ -460,7 +460,7 @@ subroutine check_energy(h,psi,N_st,sze)
     enddo
     call inner_product_complex(psi(1,j),psi(1,j),sze,norm)
     energy(j) = energy(j) / norm + dcmplx(nuclear_repulsion,0d0)
-    write(*,'(I6,2(F18.10))') j, REALPART(energy(j)), IMAGPART(energy(j))
+    write(*,'(I6,2(F18.10))') j, dble(energy(j)), dimag(energy(j))
   enddo
   
 end
@@ -487,7 +487,7 @@ subroutine check_c_energy(h,psi,N_st,sze)
     call inner_prod_c(psi(1,j),psi(1,j),sze,norm)
     !call c_norm(psi(1,j),sze,norm)
     energy(j) = energy(j) / norm + dcmplx(nuclear_repulsion,0d0)
-    write(*,'(I6,2(F18.10))') j, REALPART(energy(j)), IMAGPART(energy(j))
+    write(*,'(I6,2(F18.10))') j, dble(energy(j)), dimag(energy(j))
   enddo
 
 end
@@ -661,7 +661,7 @@ subroutine sort_complex(v,iorder,sze)
   enddo
 
   do i = 1, sze
-    re(i) = REALPART(v(i))
+    re(i) = dble(v(i))
   enddo
 
   call dsort(re, iorder, sze)
@@ -670,10 +670,10 @@ subroutine sort_complex(v,iorder,sze)
   do i = 2, sze
     if (re(i) == re(i-1)) then
       j = j + 1
-      im(j) = IMAGPART(v(iorder(i-1)))
+      im(j) = dimag(v(iorder(i-1)))
     else if (j /= 0) then
       j = j + 1
-      im(j) = IMAGPART(v(iorder(i-1)))
+      im(j) = dimag(v(iorder(i-1)))
       call dsort(im, iorder(i-j:i-1),j)
       j = 0
     endif
@@ -684,7 +684,7 @@ subroutine sort_complex(v,iorder,sze)
   enddo
 end
 
-subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n)
+subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n,info)
   implicit none
   BEGIN_DOC
   ! Diagonalization of a complex matrix
@@ -693,9 +693,10 @@ subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n)
   integer, intent(in) :: nmax,n
   complex*16, intent(in) :: H(nmax,n)
   complex*16, intent(out) :: eigvalues(n), eigvectors(nmax,n)
+  integer, intent(out) ::info
   complex*16, allocatable :: w(:), vl(:,:), vr(:,:), work(:)
   double precision, allocatable :: rwork(:)
-  integer :: lwork, info,i,j
+  integer :: lwork,i,j
   integer, allocatable :: iorder(:)
 
   lwork = max(1,2*n)
@@ -723,6 +724,50 @@ subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n)
 
 end
 
+subroutine lapack_zggev(A,B,nmax,n,eigvalues,eigvectors,info)
+  implicit none
+
+  integer, intent(in)    :: nmax, n
+  complex*16, intent(in) :: A(nmax,n), B(nmax,n)
+  complex*16, intent(out) :: eigvalues(n), eigvectors(nmax,n)
+  integer, intent(out) ::info
+  complex*16, allocatable :: alpha(:), beta(:), vl(:,:), vr(:,:), work(:), e(:)
+  double precision, allocatable :: rwork(:)
+  integer :: lwork,i,j
+  integer, allocatable :: iorder(:)
+    
+  lwork = max(1,2*n)
+
+  allocate(alpha(n), beta(n), e(n), vl(nmax,n), vr(nmax,n), work(lwork), rwork(max(1,8*n)), iorder(n))
+
+  call zggev('N','V', n, a, size(a,1), b, size(b,1), alpha, beta, vl, size(vl,1), vr, size(vr,1), work, lwork, rwork, info)
+
+  if (info < 0) then
+    print*,' the ', abs(info), '-th argument had an illegal value.'
+  else if (info > 0) then
+    print*, 'the QZ iteration failed. No eigenvectors have been calculated.'
+  endif
+
+  do i = 1, n
+    if (cdabs(beta(i)) < 1d-10) then
+      info = 1
+      e(i) = dcmplx(0d0,0d0)
+    else
+      e(i) = alpha(i)/beta(i)
+    endif
+  enddo
+
+  call sort_complex(e, iorder, n)
+  eigvalues = e
+
+  do j = 1, n
+    do i = 1, n
+      eigvectors(i,j) = vr(i,iorder(j))
+    enddo
+  enddo
+
+end
+
 BEGIN_PROVIDER [ complex*16, H_matrix_all_dets_complex,(N_det,N_det) ]
   use bitmasks
  implicit none
@@ -731,19 +776,28 @@ BEGIN_PROVIDER [ complex*16, H_matrix_all_dets_complex,(N_det,N_det) ]
  END_DOC
  integer :: i,j,k
  double precision :: hij, c
- integer :: degree(N_det),idx(0:N_det)
+ integer :: degree
  call  i_H_j(psi_det(1,1,1),psi_det(1,1,1),N_int,hij)
  print*,'Providing the H_matrix_all_dets_complex ...'
- !$OMP PARALLEL DO SCHEDULE(GUIDED) DEFAULT(NONE) PRIVATE(i,j,c,hij,degree,idx,k) &
+ !$OMP PARALLEL DO SCHEDULE(GUIDED) DEFAULT(NONE) PRIVATE(i,j,c,hij,degree,k) &
  !$OMP SHARED (N_det, psi_det, N_int,H_matrix_all_dets_complex)
  do i =1,N_det
    do j = i, N_det
     call  i_H_j(psi_det(1,1,i),psi_det(1,1,j),N_int,hij)
-    call random_number(c)
-    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.1d0*c)
-    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.1d0*c)
+    !call random_number(c)
+    call get_excitation_degree(psi_det(1,1,i),psi_det(1,1,j),degree,N_int)
+    if (degree == 1) then
+    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.01d0)!*c)
+    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.01d0)!*c)
+    else if (degree == 2) then
+    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.005d0)!*c)
+    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.005d0)!*c)
+    else
+    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0d0)
+    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0d0)
+    endif
   enddo
-  H_matrix_all_dets_complex(i,i) += dcmplx(0.0,0.1d0)
+  H_matrix_all_dets_complex(i,i) += dcmplx(0.0,0.10d0)
   !H_matrix_all_dets_complex(i,i) = H_matrix_all_dets_complex(i,i) + (0d0, 1d-2)
  enddo
  !$OMP END PARALLEL DO
