@@ -28,7 +28,7 @@ subroutine dav_complex
  do i = 1, sze
   H_jj(i) = H_matrix_all_dets_complex(i,i) + nuclear_repulsion
  enddo
- call davidson_general_complex(u_in,H_jj,energies,sze,sze,N_st,N_st_diag_in,converged,H_matrix_all_dets_complex)
+ !call davidson_general_complex(u_in,H_jj,energies,sze,sze,N_st,N_st_diag_in,converged,H_matrix_all_dets_complex)
 
  complex*16, allocatable :: eigvalues(:), eigvectors(:,:)
  allocate(eigvalues(sze),eigvectors(sze,sze))

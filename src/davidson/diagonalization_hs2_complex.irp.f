@@ -327,7 +327,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         !S(1:sze,shift+1:shift+N_st_diag) = real(S_d(1:sze,1:N_st_diag))
         do j = 1, N_st_diag
           do i = 1, sze
-            S(i,shift+j) = cmplx(real(REALPART(S_d(i,j))), real(IMAGPART(S_d(i,j))))
+            S(i,shift+j) = cmplx(real(dble(S_d(i,j))), real(dimag(S_d(i,j))))
           enddo
         enddo
 !      else
@@ -343,7 +343,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
            s_(i,j) = 0.d0
            do k=1,sze
              !s_(i,j) = s_(i,j) + U(k,i) * dble(S(k,j))
-             s_(i,j) = s_(i,j) + U(k,i) * dcmplx(REALPART(S(k,j)),IMAGPART(S(k,j)))
+             s_(i,j) = s_(i,j) + U(k,i) * dcmplx(dble(S(k,j)),dble(aimag(S(k,j))))
            enddo
           enddo
         enddo
@@ -399,9 +399,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
          itermax = iter-1
          exit
        endif
-       !print*,'ortho2'
-        call ortho_qr_complex(y,size(y,1),shift2,shift2)
-        call ortho_qr_complex(y,size(y,1),shift2,shift2)
 
       ! Compute Energy for each eigenvector
       ! -----------------------------------
@@ -438,7 +435,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
       if (only_expected_s2) then
           do k=1,shift2
-            state_ok(k) = (dabs(REALPART(s2(k))-expected_s2) < 0.6d0)
+            state_ok(k) = (dabs(dble(s2(k))-expected_s2) < 0.6d0)
           enddo
       else
         do k=1,size(state_ok)
@@ -473,7 +470,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       !y_s(:,:) = real(y(:,:))
       do k = 1, N_st_diag*itermax
         do i = 1, N_st_diag*itermax
-          y_s(i,k) = complex(real(REALPART(y(i,k))), real(IMAGPART(y(i,k))))
+          y_s(i,k) = cmplx(real(dble(y(i,k))), real(dimag(y(i,k))))
         enddo
       enddo
       call cgemm('N','N', sze, N_st_diag, shift2,                    &
@@ -484,10 +481,13 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
       do k=1,N_st_diag
         do i=1,sze
-          U(i,shift2+k) =  &
-            (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
-              /(H_jj(i) - lambda (k))
-              !/max(H_jj(i) - lambda (k),1.d-2)
+           if (dble(H_jj(i) - lambda (k)) >= 1d-2) then 
+             U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) ) /(H_jj(i) - lambda (k))
+             !/max(H_jj(i) - lambda (k),1.d-2)
+            else
+              U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
+                / dcmplx(1d-1, dimag(H_jj(i) - lambda (k)))
+            endif
         enddo
 
         if (k <= N_st) then
@@ -509,14 +509,14 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       ! Check convergence
       if (iter > 1) then
         if (threshold_davidson_from_pt2) then
-          converged = dabs(maxval(REALPART(residual_norm(1:N_st)))) < threshold_davidson_pt2
-        else                                                       
-          converged = dabs(maxval(REALPART(residual_norm(1:N_st)))) < threshold_davidson
+          converged = dabs(maxval(dble(residual_norm(1:N_st)))) < threshold_davidson_pt2
+        else                                               
+          converged = dabs(maxval(dble(residual_norm(1:N_st)))) < threshold_davidson
         endif
       endif
 
       do k=1,N_st
-        if (REALPART(residual_norm(k)) > 1.d8) then
+        if (dble(residual_norm(k)) > 1.d8) then
           print *, 'Davidson failed'
           stop -1
         endif

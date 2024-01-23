@@ -459,7 +459,7 @@ compute_singles=.True.
           call get_s2(tmp_det,tmp_det2,$N_int,sij)
           !DIR$ LOOP COUNT AVG(4)
           do l=1,N_st
-            v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.005d0) * utl(l,kk+1)
+            v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.00d0) * utl(l,kk+1)
             s_t(l,k_a) = s_t(l,k_a) + dcmplx(sij,0d0) * utl(l,kk+1)
           enddo
         enddo
@@ -606,7 +606,7 @@ compute_singles=.True.
         call i_H_j_double_spin( tmp_det(1,1), psi_det_alpha_unique(1, lrow), $N_int, hij)
         !DIR$ LOOP COUNT AVG(4)
         do l=1,N_st
-          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.005d0) * utl(l,kk+1)
+          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.00d0) * utl(l,kk+1)
           ! same spin => sij = 0
         enddo
       enddo
@@ -747,7 +747,7 @@ compute_singles=.True.
 
         !DIR$ LOOP COUNT AVG(4)
         do l=1,N_st
-          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.005d0) * utl(l,kk+1)
+          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.00d0) * utl(l,kk+1)
           ! same spin => sij = 0
         enddo
       enddo

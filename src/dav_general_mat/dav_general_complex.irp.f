@@ -269,7 +269,6 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
           !print*,'W',U(:,shift+1)
           !print*,'U',U(:,shift+1)
 
-!            call H_S2_u_0_nstates_openmp(W(:,shift+1),U(:,shift+1),N_st_diag,sze)
           !print*,'hpsi'
          call hpsi_complex(W(:,shift+1),U(:,shift+1),N_st_diag,sze,h_mat)
           !print*,'done'
@@ -400,6 +399,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
 
   call write_time(6)
   print*,'Energies:'
+  call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
   call check_energy(h_mat,u_in,N_st,sze)
   print*,'c-Energies:'
   call modified_gram_schmidt_c(u_in,N_st,sze)
@@ -616,7 +616,7 @@ subroutine inner_product_complex(u,v,sze,res)
 
   do i = 1, sze
     !print*,u(i),v(i),DCONJG(v(i))
-    res = res + u(i) * DCONJG(v(i))
+    res = res + u(i) * dconjg(v(i))
   enddo
 
 end
@@ -790,8 +790,8 @@ BEGIN_PROVIDER [ complex*16, H_matrix_all_dets_complex,(N_det,N_det) ]
     H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.01d0)!*c)
     H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.01d0)!*c)
     else if (degree == 2) then
-    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.005d0)!*c)
-    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.005d0)!*c)
+    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.00d0)!*c)
+    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.00d0)!*c)
     else
     H_matrix_all_dets_complex(i,j) = dcmplx(hij,0d0)
     H_matrix_all_dets_complex(j,i) = dcmplx(hij,0d0)

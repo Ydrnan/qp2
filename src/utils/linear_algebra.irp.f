@@ -1585,7 +1585,7 @@ subroutine nullify_small_elements_complex(m,n,A,LDA,thresh)
   amax = 0.d0
   do j=1,n
     do i=1,m
-      amax = max(dabs(REALPART(A(i,j))), dabs(IMAGPART(A(i,j))), amax)
+      amax = max(dabs(dble(A(i,j))), dabs(dimag(A(i,j))), amax)
     enddo
   enddo
   if (amax == 0.d0) return
