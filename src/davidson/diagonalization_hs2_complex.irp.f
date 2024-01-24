@@ -98,7 +98,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   complex*16               :: to_print(3,N_st)
   double precision               :: cpu, wall
   integer                        :: shift, shift2, itermax, istate
-  double precision               :: r1, r2, alpha
+  double precision               :: r1, r2, alpha, t1, t2
   logical                        :: state_ok(N_st_diag_in*davidson_sze_max)
   integer                        :: nproc_target
   integer                        :: order(N_st_diag_in)
@@ -279,6 +279,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     u_in(k,k) = u_in(k,k) + (10.d0,0d0)
   enddo
+  call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
   do k=1,N_st_diag
     call normalize(u_in(1,k),sze)
   enddo
@@ -309,15 +310,21 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         ! -----------------------------------
 
         !print*,'ortho1'
+        print*,'beginnig'
+        call wall_time(t1)
         call ortho_qr_complex(U,size(U,1),sze,shift2)
-        call ortho_qr_complex(U,size(U,1),sze,shift2)
+        !call ortho_qr_complex(U,size(U,1),sze,shift2)
+        call wall_time(t2)
+        print*,'ortho',t2-t1
 
         !if ((sze > 100000).and.distributed_davidson) then
         !    call H_S2_u_0_nstates_zmq   (W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
         !else
         !print*,'U'
         !print*,U(:,1:shift2)
-            call H_S2_u_0_nstates_openmp_complex(W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
+        call H_S2_u_0_nstates_openmp_complex(W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
+        call wall_time(t2)
+        print*,'HU',t2-t1
         !print*,'W'
         !print*,W(:,shift+1:shift2)
         !call hpsi_complex(W(1,shift+1),U(1,shift+1),N_st_diag,sze,H_matrix_all_dets_complex)
@@ -357,6 +364,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
           (0.d0,0d0), s_tmp, size(s_tmp,1))
+      call wall_time(t2)
+      print*,'UHU',t2-t1
 
       ! h= (0d0,0d0)
       !do j = 1, shift2
@@ -394,6 +403,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
        !print*,'diag'
        call lapack_zggev(h,s_tmp,size(h,1),shift2,lambda,y,info)
        !print*,'lambda', lambda
+       call wall_time(t2)
+       print*,'diag',t2-t1
        if (info > 0) then
          ! Numerical errors propagate. We need to reduce the number of iterations
          itermax = iter-1
@@ -499,6 +510,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       enddo
 
 
+      call wall_time(t2)
+      print*,'tot',t2-t1
       if ((itertot>1).and.(iter == 1)) then
         !don't print
         continue
@@ -568,6 +581,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
 
   call nullify_small_elements_complex(sze,N_st_diag,U,size(U,1),threshold_davidson_pt2)
+  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
   do k=1,N_st_diag
     do i=1,sze
       u_in(i,k) = U(i,k)

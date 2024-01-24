@@ -188,7 +188,7 @@ subroutine H_S2_u_0_nstates_openmp_work_complex_$N_int(v_t,s_t,u_t,N_st,sze,ista
   complex*16, intent(in)   :: u_t(N_st,N_det)
   complex*16, intent(out)  :: v_t(N_st,sze), s_t(N_st,sze)
 
-  double precision               :: hij, sij
+  double precision               :: hij, sij, wij
   integer                        :: i,j,k,l,kk
   integer                        :: k_a, k_b, l_a, l_b, m_a, m_b
   integer                        :: istate
@@ -254,7 +254,7 @@ compute_singles=.True.
       !$OMP   PRIVATE(krow, kcol, tmp_det, spindet, k_a, k_b, i,     &
       !$OMP          lcol, lrow, l_a, l_b, utl, kk, u_is_sparse,     &
       !$OMP          buffer, doubles, n_doubles, umax,               &
-      !$OMP          tmp_det2, hij, sij, idx, buffer_lrow, l, kcol_prev,          &
+      !$OMP          tmp_det2, hij, sij, wij, idx, buffer_lrow, l, kcol_prev,          &
       !$OMP          singles_a, n_singles_a, singles_b, ratio,       &
       !$OMP          n_singles_b, k8, last_found,left,right,right_max)
 
@@ -558,10 +558,11 @@ compute_singles=.True.
 
         tmp_det2(1:$N_int,1) = psi_det_alpha_unique(1:$N_int, lrow)
         call i_h_j_single_spin( tmp_det, tmp_det2, $N_int, 1, hij)
+        call i_w_j_single_spin_cap( tmp_det, tmp_det2, $N_int, 1, wij)
 
         !DIR$ LOOP COUNT AVG(4)
         do l=1,N_st
-          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.01d0) * utl(l,kk+1)
+          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,wij) * utl(l,kk+1)
           ! single => sij = 0
         enddo
       enddo
@@ -697,9 +698,10 @@ compute_singles=.True.
 
         tmp_det2(1:$N_int,2) = psi_det_beta_unique (1:$N_int, lcol)
         call i_h_j_single_spin( tmp_det, tmp_det2, $N_int, 2, hij)
+        call i_w_j_single_spin_cap( tmp_det, tmp_det2, $N_int, 2, wij)
         !DIR$ LOOP COUNT AVG(4)
         do l=1,N_st
-          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.01d0) * utl(l,kk+1)
+          v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,wij) * utl(l,kk+1)
           ! single => sij = 0
         enddo
       enddo
@@ -781,12 +783,14 @@ compute_singles=.True.
     tmp_det(1:$N_int,2) = psi_det_beta_unique (1:$N_int, kcol)
 
     double precision, external :: diag_H_mat_elem, diag_S_mat_elem
+    double precision, external :: diag_H_mat_elem_cap
 
     hij = diag_H_mat_elem(tmp_det,$N_int)
+    wij = diag_H_mat_elem_cap(tmp_det,$N_int)
     sij = diag_S_mat_elem(tmp_det,$N_int)
     !DIR$ LOOP COUNT AVG(4)
     do l=1,N_st
-      v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,0.1d0) * u_t(l,k_a)
+      v_t(l,k_a) = v_t(l,k_a) + dcmplx(hij,wij) * u_t(l,k_a)
       s_t(l,k_a) = s_t(l,k_a) + dcmplx(sij,0d0) * u_t(l,k_a)
     enddo
 
@@ -807,4 +811,190 @@ N_int;;
 
 END_TEMPLATE
 
+subroutine i_W_j_single_spin_cap(key_i,key_j,Nint,spin,wij)
+  use bitmasks
+  implicit none
+  BEGIN_DOC
+  ! Returns $\langle i|W|j \rangle$ where $i$ and $j$ are determinants differing by
+  ! a single excitation.
+  END_DOC
+  integer, intent(in)            :: Nint, spin
+  integer(bit_kind), intent(in)  :: key_i(Nint,2), key_j(Nint,2)
+  double precision, intent(out)  :: wij
+
+  integer                        :: exc(0:2,2)
+  double precision               :: phase
+
+  call get_single_excitation_spin(key_i(1,spin),key_j(1,spin),exc,phase,Nint)
+  wij = mo_one_e_integrals_cap(exc(1,1),exc(1,2)) * phase
+  wij = - eta_cap * wij
+end
+
+BEGIN_PROVIDER [ double precision, mo_one_e_integrals_cap,(mo_num,mo_num)]
+  implicit none
+  BEGIN_DOC
+ ! Cap integrals in mo basis.
+  END_DOC
+
+  mo_one_e_integrals_cap = 0.01d0
+
+END_PROVIDER
+
+BEGIN_PROVIDER [ double precision, eta_cap]
+  implicit none
+  BEGIN_DOC
+ ! Cap strength.
+  END_DOC
+
+  eta_cap = 0d0
+
+END_PROVIDER
+
+double precision function diag_H_mat_elem_cap(det_in,Nint)
+  implicit none
+  BEGIN_DOC
+  ! Computes $\langle i|W|i \rangle$.
+  END_DOC
+  integer,intent(in)             :: Nint
+  integer(bit_kind),intent(in)   :: det_in(Nint,2)
+
+  integer(bit_kind)              :: hole(Nint,2)
+  integer(bit_kind)              :: particle(Nint,2)
+  integer                        :: i, nexc(2), ispin
+  integer                        :: occ_particle(Nint*bit_kind_size,2)
+  integer                        :: occ_hole(Nint*bit_kind_size,2)
+  integer(bit_kind)              :: det_tmp(Nint,2)
+  integer                        :: na, nb
+
+  ASSERT (Nint > 0)
+  ASSERT (sum(popcnt(det_in(:,1))) == elec_alpha_num)
+  ASSERT (sum(popcnt(det_in(:,2))) == elec_beta_num)
+
+  nexc(1) = 0
+  nexc(2) = 0
+  do i=1,Nint
+    hole(i,1)     = xor(det_in(i,1),ref_bitmask(i,1))
+    hole(i,2)     = xor(det_in(i,2),ref_bitmask(i,2))
+    particle(i,1) = iand(hole(i,1),det_in(i,1))
+    particle(i,2) = iand(hole(i,2),det_in(i,2))
+    hole(i,1)     = iand(hole(i,1),ref_bitmask(i,1))
+    hole(i,2)     = iand(hole(i,2),ref_bitmask(i,2))
+    nexc(1)       = nexc(1) + popcnt(hole(i,1))
+    nexc(2)       = nexc(2) + popcnt(hole(i,2))
+  enddo
+
+  !diag_H_mat_elem = ref_bitmask_energy
+  diag_H_mat_elem_cap = 0d0
+  if (nexc(1)+nexc(2) == 0) then
+    return
+  endif
+
+  !call debug_det(det_in,Nint)
+  integer                        :: tmp(2)
+  !DIR$ FORCEINLINE
+  call bitstring_to_list_ab(particle, occ_particle, tmp, Nint)
+  ASSERT (tmp(1) == nexc(1))
+  ASSERT (tmp(2) == nexc(2))
+  !DIR$ FORCEINLINE
+  call bitstring_to_list_ab(hole, occ_hole, tmp, Nint)
+  ASSERT (tmp(1) == nexc(1))
+  ASSERT (tmp(2) == nexc(2))
+
+  det_tmp = ref_bitmask
+  do ispin=1,2
+    na = elec_num_tab(ispin)
+    nb = elec_num_tab(iand(ispin,1)+1)
+    do i=1,nexc(ispin)
+      !DIR$ FORCEINLINE
+      call ac_operator( occ_particle(i,ispin), ispin, det_tmp, diag_H_mat_elem_cap, Nint,na,nb)
+      !DIR$ FORCEINLINE
+      call a_operator ( occ_hole    (i,ispin), ispin, det_tmp, diag_H_mat_elem_cap, Nint,na,nb)
+    enddo
+  enddo
+
+  diag_H_mat_elem_cap = - eta_cap * diag_H_mat_elem_cap
+end
+
+subroutine a_operator_cap(iorb,ispin,key,wjj,Nint,na,nb)
+  use bitmasks
+  implicit none
+  BEGIN_DOC
+  ! Needed for :c:func:`diag_H_mat_elem_cap`.
+  END_DOC
+  integer, intent(in)            :: iorb, ispin, Nint
+  integer, intent(inout)         :: na, nb
+  integer(bit_kind), intent(inout) :: key(Nint,2)
+  double precision, intent(inout) :: wjj
+
+  integer                        :: occ(Nint*bit_kind_size,2)
+  integer                        :: other_spin
+  integer                        :: k,l,i
+  integer                        :: tmp(2)
+
+  ASSERT (iorb > 0)
+  ASSERT (ispin > 0)
+  ASSERT (ispin < 3)
+  ASSERT (Nint > 0)
+
+  k = shiftr(iorb-1,bit_kind_shift)+1
+  ASSERT (k>0)
+  l = iorb - shiftl(k-1,bit_kind_shift)-1
+  key(k,ispin) = ibclr(key(k,ispin),l)
+  other_spin = iand(ispin,1)+1
+
+  !DIR$ FORCEINLINE
+  call bitstring_to_list_ab(key, occ, tmp, Nint)
+  na = na-1
+
+  wjj = wjj - mo_one_e_integrals_cap(iorb,iorb)
+
+end
+
+subroutine ac_operator_cap(iorb,ispin,key,wjj,Nint,na,nb)
+  use bitmasks
+  implicit none
+  BEGIN_DOC
+  ! Needed for :c:func:`diag_H_mat_elem_cap`.
+  END_DOC
+  integer, intent(in)            :: iorb, ispin, Nint
+  integer, intent(inout)         :: na, nb
+  integer(bit_kind), intent(inout) :: key(Nint,2)
+  double precision, intent(inout) :: wjj
+
+  integer                        :: occ(Nint*bit_kind_size,2)
+  integer                        :: other_spin
+  integer                        :: k,l,i
+
+  if (iorb < 1) then
+    print *,  irp_here, ': iorb < 1'
+    print *,  iorb, mo_num
+    stop -1
+  endif
+  if (iorb > mo_num) then
+    print *,  irp_here, ': iorb > mo_num'
+    print *,  iorb, mo_num
+    stop -1
+  endif
+
+  ASSERT (ispin > 0)
+  ASSERT (ispin < 3)
+  ASSERT (Nint > 0)
+
+  integer                        :: tmp(2)
+  !DIR$ FORCEINLINE
+  call bitstring_to_list_ab(key, occ, tmp, Nint)
+  ASSERT (tmp(1) == elec_alpha_num)
+  ASSERT (tmp(2) == elec_beta_num)
+
+  k = shiftr(iorb-1,bit_kind_shift)+1
+  ASSERT (k >0)
+  l = iorb - shiftl(k-1,bit_kind_shift)-1
+  ASSERT (l >= 0)
+  key(k,ispin) = ibset(key(k,ispin),l)
+  other_spin = iand(ispin,1)+1
+
+  wjj = wjj + mo_one_e_integrals_cap(iorb,iorb)
+
+  na = na+1
+end
 

@@ -25,20 +25,20 @@ subroutine dav_complex
  do i = 1, N_st
   u_in(1,i) = (1.d0,0d0)
  enddo
- do i = 1, sze
-  H_jj(i) = H_matrix_all_dets_complex(i,i) + nuclear_repulsion
- enddo
+ !do i = 1, sze
+ ! H_jj(i) = H_matrix_all_dets_complex(i,i) + nuclear_repulsion
+ !enddo
  !call davidson_general_complex(u_in,H_jj,energies,sze,sze,N_st,N_st_diag_in,converged,H_matrix_all_dets_complex)
 
- complex*16, allocatable :: eigvalues(:), eigvectors(:,:)
- allocate(eigvalues(sze),eigvectors(sze,sze))
- call diag_general_complex(eigvalues,eigvectors,H_matrix_all_dets_complex,sze,sze,info)
+ !complex*16, allocatable :: eigvalues(:), eigvectors(:,:)
+ !allocate(eigvalues(sze),eigvectors(sze,sze))
+ !call diag_general_complex(eigvalues,eigvectors,H_matrix_all_dets_complex,sze,sze,info)
 
- eigvalues += dcmplx(nuclear_repulsion,0d0)
- print*,'Exact energies:'
- do i = 1, min(10,N_det)
-    write(*,'(I6,100(F18.10))') i, eigvalues(i)
- enddo
+ !eigvalues += dcmplx(nuclear_repulsion,0d0)
+ !print*,'Exact energies:'
+ !do i = 1, min(10,N_det)
+ !   write(*,'(I6,100(F18.10))') i, eigvalues(i)
+ !enddo
 
  u_in = 0.d0
  do i = 1, N_st

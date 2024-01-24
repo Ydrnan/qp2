@@ -251,7 +251,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
    
       !print*,iter,itertot
       !print*,'cond',(iter > 1).or.(itertot == 1), (iter > 1), (itertot == 1)
-      if ((iter > 1).or.(itertot == 1)) then
+      !if ((iter > 1).or.(itertot == 1)) then
         ! Compute |W_k> = \sum_i |i><i|H|u_k>
         ! -----------------------------------
 
@@ -272,10 +272,11 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
           !print*,'hpsi'
          call hpsi_complex(W(:,shift+1),U(:,shift+1),N_st_diag,sze,h_mat)
           !print*,'done'
-      else
+      !else
          ! Already computed in update below
-         continue
-      endif
+      !   print*,'Already computed in update below'
+      !   continue
+      !endif
 
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
@@ -372,19 +373,19 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
         U(i,k) = u_in(i,k)
       enddo
     enddo
-      call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-      call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-    do j=1,N_st_diag
-      k=1
-      do while ((k<sze).and.(U(k,j) == (0.d0,0d0)))
-        k = k+1
-      enddo
-      if (dble(U(k,j) * u_in(k,j)) < 0.d0) then
-        do i=1,sze
-          W(i,j) = -W(i,j)
-        enddo
-      endif
-    enddo
+    !call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    !call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    !do j=1,N_st_diag
+    !  k=1
+    !  do while ((k<sze).and.(U(k,j) == (0.d0,0d0)))
+    !    k = k+1
+    !  enddo
+    !  if (dble(U(k,j) * u_in(k,j)) < 0.d0) then
+    !    do i=1,sze
+    !      W(i,j) = -W(i,j)
+    !    enddo
+    !  endif
+    !enddo
   enddo
 
   do k=1,N_st
@@ -402,7 +403,7 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
   call check_energy(h_mat,u_in,N_st,sze)
   print*,'c-Energies:'
-  call modified_gram_schmidt_c(u_in,N_st,sze)
+  call modified_gram_schmidt_c(u_in,N_st_diag,sze)
   call check_c_energy(h_mat,u_in,N_st,sze)
   write(6,'(A)') ''
 
@@ -774,31 +775,33 @@ BEGIN_PROVIDER [ complex*16, H_matrix_all_dets_complex,(N_det,N_det) ]
  BEGIN_DOC
  ! |H| matrix on the basis of the Slater determinants defined by psi_det
  END_DOC
- integer :: i,j,k
- double precision :: hij, c
- integer :: degree
+ integer :: i,j,k,h1,p1,h2,p2,s1,s2
+ double precision :: hij, wij, phase
+ double precision, external :: diag_H_mat_elem_cap
+ integer :: degree, exc(0:2,2,2)
  call  i_H_j(psi_det(1,1,1),psi_det(1,1,1),N_int,hij)
  print*,'Providing the H_matrix_all_dets_complex ...'
- !$OMP PARALLEL DO SCHEDULE(GUIDED) DEFAULT(NONE) PRIVATE(i,j,c,hij,degree,k) &
+ !$OMP PARALLEL DO SCHEDULE(GUIDED) DEFAULT(NONE) PRIVATE(i,j,wij,hij,degree,k,&
+ !$OMP phase, h1,p1,h2,p2,s1,s2,exc) &
  !$OMP SHARED (N_det, psi_det, N_int,H_matrix_all_dets_complex)
  do i =1,N_det
    do j = i, N_det
     call  i_H_j(psi_det(1,1,i),psi_det(1,1,j),N_int,hij)
-    !call random_number(c)
     call get_excitation_degree(psi_det(1,1,i),psi_det(1,1,j),degree,N_int)
-    if (degree == 1) then
-    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.01d0)!*c)
-    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.01d0)!*c)
-    else if (degree == 2) then
-    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0.00d0)!*c)
-    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0.00d0)!*c)
+
+    if (degree == 0) then
+      wij = diag_H_mat_elem_cap(psi_det(1,1,i),N_int)
+    else if (degree == 1) then
+      call get_excitation(psi_det(1,1,i),psi_det(1,1,j),exc,degree,phase,N_int)
+      call decode_exc(exc,degree,h1,p1,h2,p2,s1,s2)
+      call i_W_j_single_spin_cap(psi_det(1,1,i),psi_det(1,1,j),N_int,s1,wij)   
     else
-    H_matrix_all_dets_complex(i,j) = dcmplx(hij,0d0)
-    H_matrix_all_dets_complex(j,i) = dcmplx(hij,0d0)
+      wij = 0d0
     endif
+
+    H_matrix_all_dets_complex(i,j) = dcmplx(hij,wij)
+    H_matrix_all_dets_complex(j,i) = dcmplx(hij,wij)
   enddo
-  H_matrix_all_dets_complex(i,i) += dcmplx(0.0,0.10d0)
-  !H_matrix_all_dets_complex(i,i) = H_matrix_all_dets_complex(i,i) + (0d0, 1d-2)
  enddo
  !$OMP END PARALLEL DO
  print*,'H_matrix_all_dets_complex done '
