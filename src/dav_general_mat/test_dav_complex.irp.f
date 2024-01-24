@@ -21,10 +21,10 @@ subroutine dav_complex
  sze = N_det
  !!!! MARK THAT u_in mut dimensioned with "N_st_diag_in" as a second dimension 
  allocate(u_in(sze,N_st_diag_in),H_jj(sze),energies(N_st_diag_in),s2_out(N_st_diag_in))
- u_in = 0.d0
- do i = 1, N_st
-  u_in(1,i) = (1.d0,0d0)
- enddo
+ !u_in = 0.d0
+ !do i = 1, N_st
+ ! u_in(1,i) = (1.d0,0d0)
+ !enddo
  !do i = 1, sze
  ! H_jj(i) = H_matrix_all_dets_complex(i,i) + nuclear_repulsion
  !enddo

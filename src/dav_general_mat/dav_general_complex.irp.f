@@ -446,7 +446,7 @@ subroutine check_energy(h,psi,N_st,sze)
   integer, intent(in) :: N_st, sze
   complex*16, intent(in) :: h(sze,sze), psi(sze,N_st)
 
-  complex*16 :: norm
+  complex*16 :: res
   complex*16, allocatable :: h_psi(:,:), energy(:)
   integer :: i,j
 
@@ -459,8 +459,8 @@ subroutine check_energy(h,psi,N_st,sze)
     do i = 1, sze
       energy(j) += CONJG(psi(i,j)) * h_psi(i,j)
     enddo
-    call inner_product_complex(psi(1,j),psi(1,j),sze,norm)
-    energy(j) = energy(j) / norm + dcmplx(nuclear_repulsion,0d0)
+    call inner_product_complex(psi(1,j),psi(1,j),sze,res)
+    energy(j) = energy(j) / res + dcmplx(nuclear_repulsion,0d0)
     write(*,'(I6,2(F18.10))') j, dble(energy(j)), dimag(energy(j))
   enddo
   
@@ -807,3 +807,95 @@ BEGIN_PROVIDER [ complex*16, H_matrix_all_dets_complex,(N_det,N_det) ]
  print*,'H_matrix_all_dets_complex done '
 END_PROVIDER
 
+subroutine test_ortho_qr_complex(A, lda, m, n)
+  implicit none
+
+  integer, intent(in) :: lda, m, n
+  complex*16, intent(inout) :: A(lda,n)
+  
+  integer :: lwork, info
+  complex*16, allocatable :: work(:), tau(:)
+
+  lwork = -1
+  allocate(work(1),tau(min(m, n)))
+
+  if (m < n) then
+    print*,'Error in parameters for qr'
+    call abort()
+  endif
+  
+  call zgeqrf(m, n, A, lda, tau, work, lwork, info)
+
+  lwork = int(work(1))
+  deallocate(work)
+  allocate(work(lwork))
+
+  call zgeqrf(m, n, A, lda, tau, work, lwork, info)
+
+  if (info < 0) then
+     print*,'the', info,'-th parameter had an illegal value.'
+  endif
+  
+  lwork = -1
+  deallocate(work)
+  allocate(work(1))
+  call zungqr(m, n, n, A, lda, tau, work, lwork, info) 
+
+  lwork = int(work(1))
+  deallocate(work)
+  allocate(work(lwork))
+
+  call zungqr(m, n, n, A, lda, tau, work, lwork, info)
+  
+  if (info < 0) then
+     print*,'the', info,'-th parameter had an illegal value.'
+  endif
+
+  deallocate(tau,work)
+end
+
+subroutine test_ortho_qr_complex2(A, lda, m, n)
+  implicit none
+
+  integer, intent(in) :: lda, m, n
+  complex*16, intent(inout) :: A(lda,n)
+
+  integer :: lwork, info
+  complex*16, allocatable :: work(:), tau(:)
+  integer, allocatable :: jpvt(:)
+  double precision, allocatable :: rwork(:)
+
+  lwork = -1
+  allocate(work(1),tau(min(m, n)),jpvt(n),rwork(2*n))
+
+  call zgeqp3(m, n, a, lda, jpvt, tau, work, lwork, rwork, info)
+  
+  jpvt = 1
+  lwork = int(work(1))
+  deallocate(work)
+  allocate(work(lwork))
+
+  call zgeqp3(m, n, a, lda, jpvt, tau, work, lwork, rwork, info)
+
+  if (info < 0) then
+     print*,'the', info,'-th parameter had an illegal value.'
+  endif
+
+  lwork = -1
+  deallocate(work)
+  allocate(work(1))
+  call zungqr(m, n, n, A, lda, tau, work, lwork, info)
+
+  lwork = int(work(1))
+  deallocate(work)
+  allocate(work(lwork))
+
+  call zungqr(m, n, n, A, lda, tau, work, lwork, info)
+
+  if (info < 0) then
+     print*,'the', info,'-th parameter had an illegal value.'
+  endif
+
+  deallocate(tau,work)
+
+end
