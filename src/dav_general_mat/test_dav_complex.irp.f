@@ -40,10 +40,18 @@ subroutine dav_complex
  !   write(*,'(I6,100(F18.10))') i, eigvalues(i)
  !enddo
 
- u_in = 0.d0
+ u_in = (0d0,0d0)
  do i = 1, N_st
   u_in(1,i) = (1.d0,0d0)
  enddo
  call davidson_diag_hs2_complex(psi_det,u_in,s2_out,sze,energies,sze,N_st,N_st_diag_in,N_int,converged)
+
+ double precision, allocatable :: u_in2(:,:), s2_out2(:), energies2(:)
+ allocate(u_in2(sze,N_st_diag_in),energies2(N_st_diag_in),s2_out2(N_st_diag_in))
+  u_in2 = 0d0
+  do i = 1, N_st
+  u_in(1,i) = 1.d0
+ enddo
+ call davidson_diag_hs2(psi_det,u_in2,s2_out2,sze,energies2,sze,N_st,N_st_diag_in,N_int,0,converged)
 
 end

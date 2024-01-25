@@ -89,9 +89,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   integer                        :: k_pairs, kl
 
   integer                        :: iter2, itertot
-  complex*16, allocatable  :: y(:,:), h(:,:), h_p(:,:), lambda(:), s2(:)
+  complex*16, allocatable  :: y(:,:), h(:,:), h_p(:,:), lambda(:), s2(:), h_cp(:,:)
   complex*8, allocatable              :: y_s(:,:)
-  complex*16, allocatable  :: s_(:,:), s_tmp(:,:)
+  complex*16, allocatable  :: s_(:,:), s_tmp(:,:), y_left(:,:), s_cp(:,:)
   double precision               :: diag_h_mat_elem
   complex*16, allocatable  :: residual_norm(:)
   character*(16384)              :: write_buffer
@@ -100,14 +100,17 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   integer                        :: shift, shift2, itermax, istate
   double precision               :: r1, r2, alpha, t1, t2
   logical                        :: state_ok(N_st_diag_in*davidson_sze_max)
-  integer                        :: nproc_target
+  integer                        :: nproc_target, info
   integer                        :: order(N_st_diag_in)
   double precision               :: cmax
-  complex*16, allocatable  :: U(:,:), overlap(:,:), S_d(:,:), Up(:,:)
+  complex*16, allocatable  :: U(:,:), overlap(:,:), S_d(:,:)
+  double precision, allocatable ::  U_r(:,:)
   complex*16, pointer      :: W(:,:)
   complex*8, pointer                  :: S(:,:)
   logical                        :: disk_based
   complex*16               :: energy_shift(N_st_diag_in*davidson_sze_max), res
+  double precision, allocatable :: y_r(:,:), s_tmp_r(:,:), lambda_r(:)
+  double precision, allocatable :: W_r(:,:), S_d_r(:,:)
 
   include 'constants.include.F'
 
@@ -237,8 +240,17 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
   allocate(                                                          &
       ! Large
-      U(sze,N_st_diag*itermax),            &
+      U(sze,N_st_diag*itermax), U_r(sze,N_st_diag*itermax),          &
       S_d(sze,N_st_diag),                                            &
+      y_r(N_st_diag*itermax,N_st_diag*itermax), &
+      s_tmp_r(N_st_diag*itermax,N_st_diag*itermax), &
+      lambda_r(N_st_diag*itermax),&
+      W_r(sze,N_st_diag*itermax), S_d_r(sze,N_st_diag),&
+      h_cp(N_st_diag*itermax,N_st_diag*itermax), &
+      y_left(N_st_diag*itermax,N_st_diag*itermax), &
+      s_cp(N_st_diag*itermax,N_st_diag*itermax), &
+    
+      
 
       ! Small
       h(N_st_diag*itermax,N_st_diag*itermax),                        &
@@ -275,14 +287,19 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         call random_number(r2)
         r1 = dsqrt(-2.d0*dlog(r1))
         r2 = dtwo_pi*r2
-        u_in(i,k) = r1*dcos(r2) * u_in(i,k-N_st)
+        u_in(i,k) = dcmplx(r1*dcos(r2),0d0) * u_in(i,k-N_st)
     enddo
     u_in(k,k) = u_in(k,k) + (10.d0,0d0)
   enddo
-  call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
   do k=1,N_st_diag
-    call normalize(u_in(1,k),sze)
+    call normalize_complex(u_in(1,k),sze)
   enddo
+  
+  !call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
+
+  U_r = dble(u_in)
+  call ortho_qr(U_r,size(U_r,1),sze,N_st_diag)
+  u_in = dcmplx(U_r,0d0)
 
   do k=1,N_st_diag
     do i=1,sze
@@ -291,7 +308,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   enddo
   do k = N_st_diag + 1, N_st_diag*itermax
     do i = 1, sze
-      U(i,k) = (1d300,1d300)
+      U(i,k) = (0d0,0d0) !(1d300,1d300)
     enddo
   enddo
 
@@ -310,25 +327,20 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       shift  = N_st_diag*(iter-1)
       shift2 = N_st_diag*iter
 
-!      if ((iter > 1).or.(itertot == 1)) then
-        ! Compute |W_k> = \sum_i |i><i|H|u_k>
-        ! -----------------------------------
+        !U_r = dble(U)
+        !call ortho_qr(U_r,size(U_r,1),sze,N_st_diag)
+        !call ortho_qr(U_r,size(U_r,1),sze,N_st_diag)
+        !call ortho_qr(U_r,size(U_r,1),sze,shift2)
+        !call ortho_qr(U_r,size(U_r,1),sze,shift2)
+        !U = dcmplx(U_r,0d0)
 
-        !print*,'ortho1'
-        !print*,'beginning'
-        !call wall_time(t1)
-        !call mkl_set_num_threads(1)
-        !call test_ortho_qr_complex(Up,size(Up,1),sze,shift2)
-        !call test_ortho_qr_complex(Up,size(Up,1),sze,shift2)
-        !call mkl_set_num_threads(1)
-        call ortho_qr_complex(U,size(U,1),sze,shift2)
-        call ortho_qr_complex(U,size(U,1),sze,shift2)
-        !print*,U(1,1:shift2)
-        !print*,U(1:4,1:4)
+        !call ortho_qr_complex(U,size(U,1),sze,shift2)
+        !call ortho_qr_complex(U,size(U,1),sze,shift2)
+
         !do i = 1, shift2
         !  do j = 1, sze
-        !    if (cdabs(Up(j,i) - U(j,i)) > 1d-4) then
-        !      print*,'pb',i,j,Up(j,i), U(j,i)
+        !    if (cdabs(U_r(j,i) - U(j,i)) > 1d-2) then
+        !      print*,'pb',i,j,U_r(j,i), U(j,i)
         !      !call abort
         !    endif
         !  enddo
@@ -345,33 +357,15 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         !    endif
         !  enddo
         !enddo
-        !call wall_time(t2)
-        !print*,'ortho',t2-t1
 
-        !if ((sze > 100000).and.distributed_davidson) then
-        !    call H_S2_u_0_nstates_zmq   (W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
-        !else
-        !print*,'U'
-        !print*,U(:,1:shift2)
         call H_S2_u_0_nstates_openmp_complex(W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
-        !call wall_time(t2)
-        !print*,'HU',t2-t1
-        !print*,'W'
-        !print*,W(:,shift+1:shift2)
-        !call hpsi_complex(W(1,shift+1),U(1,shift+1),N_st_diag,sze,H_matrix_all_dets_complex)
-        !print*,'W'
-        !print*,W(:,shift+1:shift2)
-        !endif
+        !U_r = dble(U)
+        !call H_S2_u_0_nstates_openmp(W_r(1,shift+1),S_d_r,U_r(1,shift+1),N_st_diag,sze)
+        !W = dcmplx(W_r,0d0)
+        !S_d = dcmplx(S_d_r,0d0)
+
         !S(1:sze,shift+1:shift+N_st_diag) = real(S_d(1:sze,1:N_st_diag))
-        do j = 1, N_st_diag
-          do i = 1, sze
-            S(i,shift+j) = cmplx(real(dble(S_d(i,j))), real(dimag(S_d(i,j))))
-          enddo
-        enddo
-!      else
-!         ! Already computed in update below
-!         continue
-!      endif
+        S(1:sze,shift+1:shift+N_st_diag) = cmplx(real(dble(S_d(1:sze,1:N_st_diag))), real(dimag(S_d(1:sze,1:N_st_diag))))
 
       ! Compute s_kl = <u_k | S_l> = <u_k| S2 |u_l>
       ! -------------------------------------------
@@ -388,56 +382,36 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
-      !print*,'uHu'
+
       call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
           (0.d0,0d0), h, size(h,1))
       call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
           (0.d0,0d0), s_tmp, size(s_tmp,1))
-      !call wall_time(t2)
-      !print*,'UHU',t2-t1
-
-      ! h= (0d0,0d0)
-      !do j = 1, shift2
-      !  do i = 1, shift2
-      !    do k = 1, sze
-      !      h(i,j) += DCONJG(U(k,i)) * W(k,j)
-      !      print*,DCONJG(U(k,i)),W(k,j)
-      !    enddo
-      !    print*,i,j,h(i,j)
-      !  enddo
-      !enddo
 
       ! Diagonalize h_p
       ! ---------------
 
-       integer :: lwork, info
-       !double precision, allocatable :: work(:)
+       h_cp = h
+       s_cp = s_tmp
+       call lapack_zggev(h_cp,s_tmp,size(h,1),shift2,lambda,y_left,y,info)
+       !write(*,'(100(F22.16))') lambda(1:N_st) + dcmplx(nuclear_repulsion,0d0)
 
-       !y = h
-!       y = h_p   ! Doesn't work for non-singlets
-       !lwork = -1
-       !allocate(work(1))
-       !call dsygv(1,'V','U',shift2,y,size(y,1), &
-       !   s_tmp,size(s_tmp,1), lambda, work,lwork,info)
-       !lwork = int(work(1))
-       !deallocate(work)
-       !allocate(work(lwork))
-       !call dsygv(1,'V','U',shift2,y,size(y,1), &
-       !   s_tmp,size(s_tmp,1), lambda, work,lwork,info)
-       !deallocate(work)
-       !print*,'h'
-       !print*,h(1:shift2,1:shift2)
-       !print*,'s_tmp'
-       !print*,s_tmp
-       !print*,'diag'
-       !call mkl_set_num_threads(1)
-       call lapack_zggev(h,s_tmp,size(h,1),shift2,lambda,y,info)
-       !call mkl_set_num_threads(8)
-       !print*,'lambda', lambda
-       !call wall_time(t2)
-       !print*,'diag',t2-t1
+       ! Normalization to have Y^* s_tmp Y = Id
+       ! => y = 1/sqrt(y^* s_tmp y)
+       ! --------------------------------------
+       call zgemm('N','N',shift2,shift2,shift2,                       &
+          (1.d0,0d0), s_cp, size(h,1), y, size(y,1),                          &
+          (0d0,0.d0), s_tmp, size(s_tmp,1))
+       call zgemm('C','N',shift2,shift2,shift2,                       &
+          (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
+          (0.d0,0d0), s_cp, size(h,1))
+
+       do i = 1, shift2
+         y(:,i) = y(:,i) / cdsqrt(s_cp(i,i))
+       enddo 
+
        if (info > 0) then
          ! Numerical errors propagate. We need to reduce the number of iterations
          itermax = iter-1
@@ -450,25 +424,22 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('N','N',shift2,shift2,shift2,                       &
           (1.d0,0d0), h, size(h,1), y, size(y,1),                          &
           (0d0,0.d0), s_tmp, size(s_tmp,1))
-      !print*,'y s_tmp'
       call zgemm('C','N',shift2,shift2,shift2,                       &
           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
           (0.d0,0d0), h, size(h,1))
 
-      !do k=1,shift2
-      !  lambda(k) = h(k,k)
-      !enddo
-      !write(*,'(100(F11.6))') lambda(1:shift2)
+      do k=1,shift2
+        lambda(k) = h(k,k)
+      enddo
+      !write(*,'(100(F22.16))') lambda(1:N_st) + dcmplx(nuclear_repulsion,0d0)
 
       ! Compute S2 for each eigenvector
       ! -------------------------------
 
-      !print*,'s_ y'
       call zgemm('N','N',shift2,shift2,shift2,                       &
           (1.d0,0d0), s_, size(s_,1), y, size(y,1),                        &
           (0.d0,0d0), s_tmp, size(s_tmp,1))
 
-      !print*,'y s_tmp'
       call zgemm('C','N',shift2,shift2,shift2,                       &
           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
           (0.d0,0d0), s_, size(s_,1))
@@ -476,6 +447,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       do k=1,shift2
         s2(k) = s_(k,k)
       enddo
+      !print*,'s2',dble(s2(1:N_st))
 
       if (only_expected_s2) then
           do k=1,shift2
@@ -504,19 +476,15 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
       ! Express eigenvectors of h in the determinant basis
       ! --------------------------------------------------
-      !print*,'Uy'
       call zgemm('N','N', sze, N_st_diag, shift2,                    &
           (1.d0,0d0), U, size(U,1), y, size(y,1), (0.d0,0d0), U(1,shift2+1), size(U,1))
-      !print*,'Wy'
+
       call zgemm('N','N', sze, N_st_diag, shift2,                    &
           (1.d0,0d0), W, size(W,1), y, size(y,1), (0.d0,0d0), W(1,shift2+1), size(W,1))
 
       !y_s(:,:) = real(y(:,:))
-      do k = 1, N_st_diag*itermax
-        do i = 1, N_st_diag*itermax
-          y_s(i,k) = cmplx(real(dble(y(i,k))), real(dimag(y(i,k))))
-        enddo
-      enddo
+      y_s(:,:) = cmplx(real(dble(y(:,:))), real(dimag(y(:,:))))
+
       call cgemm('N','N', sze, N_st_diag, shift2,                    &
           (1.,0.), S, size(S,1), y_s, size(y_s,1), (0.,0.), S(1,shift2+1), size(S,1))
 
@@ -530,7 +498,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
              !/max(H_jj(i) - lambda (k),1.d-2)
             else
               U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
-                / dcmplx(1d-1, dimag(H_jj(i) - lambda (k)))
+                / dcmplx(1d-2, dimag(H_jj(i) - lambda (k)))
             endif
         enddo
 
@@ -543,13 +511,12 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       enddo
 
 
-      !call wall_time(t2)
-      !print*,'tot',t2-t1
       if ((itertot>1).and.(iter == 1)) then
         !don't print
         continue
       else
-        write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,F11.6,1X,F11.6,1X,ES11.3,1X,ES11.3))') iter-1, to_print(1:3,1:N_st)
+        !write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,F11.6,1X,F11.6,1X,ES11.3,1X,ES11.3))') iter-1, to_print(1:3,1:N_st)
+        write(*,'(1X,I3,1X,100(1X,F16.10,1X,F11.6,1X,ES11.3))') iter-1, dble(to_print(1:3,1:N_st))
       endif
 
       ! Check convergence
@@ -613,9 +580,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   enddo
 
 
-  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
   call nullify_small_elements_complex(sze,N_st_diag,U,size(U,1),threshold_davidson_pt2)
+  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
   do k=1,N_st_diag
     do i=1,sze
       u_in(i,k) = U(i,k)

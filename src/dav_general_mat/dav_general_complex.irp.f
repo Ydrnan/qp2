@@ -725,23 +725,23 @@ subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n,info)
 
 end
 
-subroutine lapack_zggev(A,B,nmax,n,eigvalues,eigvectors,info)
+subroutine lapack_zggev(A,B,nmax,n,eigvalues,l_eigvectors,r_eigvectors,info)
   implicit none
 
   integer, intent(in)    :: nmax, n
   complex*16, intent(in) :: A(nmax,n), B(nmax,n)
-  complex*16, intent(out) :: eigvalues(n), eigvectors(nmax,n)
+  complex*16, intent(out) :: eigvalues(n), l_eigvectors(nmax,n), r_eigvectors(nmax,n)
   integer, intent(out) ::info
-  complex*16, allocatable :: alpha(:), beta(:), vl(:,:), vr(:,:), work(:), e(:)
+  complex*16, allocatable :: alpha(:), beta(:), vl(:,:), vr(:,:), work(:), e(:), tmp(:)
   double precision, allocatable :: rwork(:)
   integer :: lwork,i,j
   integer, allocatable :: iorder(:)
     
   lwork = max(1,2*n)
 
-  allocate(alpha(n), beta(n), e(n), vl(nmax,n), vr(nmax,n), work(lwork), rwork(max(1,8*n)), iorder(n))
+  allocate(alpha(n), beta(n), e(n), vl(nmax,n), vr(nmax,n), work(lwork), rwork(max(1,8*n)), iorder(n), tmp(n))
 
-  call zggev('N','V', n, a, size(a,1), b, size(b,1), alpha, beta, vl, size(vl,1), vr, size(vr,1), work, lwork, rwork, info)
+  call zggev('V','V', n, a, size(a,1), b, size(b,1), alpha, beta, vl, size(vl,1), vr, size(vr,1), work, lwork, rwork, info)
 
   if (info < 0) then
     print*,' the ', abs(info), '-th argument had an illegal value.'
@@ -758,12 +758,22 @@ subroutine lapack_zggev(A,B,nmax,n,eigvalues,eigvectors,info)
     endif
   enddo
 
+  tmp = e
   call sort_complex(e, iorder, n)
-  eigvalues = e
+
+  do i = 1, n
+    eigvalues(i) = tmp(iorder(i))
+  enddo
 
   do j = 1, n
     do i = 1, n
-      eigvectors(i,j) = vr(i,iorder(j))
+      r_eigvectors(i,j) = vr(i,iorder(j))
+    enddo
+  enddo
+
+  do j = 1, n
+    do i = 1, n
+      l_eigvectors(i,j) = vl(i,iorder(j))
     enddo
   enddo
 
