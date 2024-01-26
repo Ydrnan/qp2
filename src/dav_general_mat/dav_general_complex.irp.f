@@ -33,11 +33,10 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   integer                        :: k_pairs, kl
 
   integer                        :: iter2, itertot
-  complex*16, allocatable        :: y(:,:), h(:,:), lambda(:)
-  complex*16                     :: diag_h_mat_elem
-  complex*16, allocatable        :: residual_norm(:)
+  complex*16, allocatable        :: y(:,:), h(:,:), lambda(:), tmp(:,:)
+  complex*16, allocatable        :: residual_norm(:), h_cp(:,:)
   character*(16384)              :: write_buffer
-  complex*16                     :: to_print(2,N_st)
+  complex*16                     :: to_print(2,N_st), res
   double precision               :: cpu, wall
   integer                        :: shift, shift2, itermax, istate
   double precision               :: r1, r2, alpha
@@ -179,6 +178,8 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       U(sze,N_st_diag*itermax),                                      &
       ! Small
       h(N_st_diag*itermax,N_st_diag*itermax),                        &
+      h_cp(N_st_diag*itermax,N_st_diag*itermax),                        &
+      tmp(N_st_diag*itermax,N_st_diag*itermax),                        &
       y(N_st_diag*itermax,N_st_diag*itermax),                        &
       residual_norm(N_st_diag),                                      &
       lambda(N_st_diag*itermax))
@@ -212,25 +213,24 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   ! Initialize from N_st to N_st_diat with gaussian random numbers
   ! to be sure to have overlap with any eigenvectors
   do k=N_st+1,N_st_diag
-    u_in(k,k) = 10.d0
     do i=1,sze
       call random_number(r1)
       call random_number(r2)
       r1 = dsqrt(-2.d0*dlog(r1))
       r2 = dtwo_pi*r2
-      u_in(i,k) = dcmplx(r1*dcos(r2), r1)
+      u_in(i,k) = dcmplx(r1*dcos(r2), 0d0) * u_in(i,k-N_st)
     enddo
+    u_in(k,k) = u_in(k,k) + (10.d0,0d0)
   enddo
   ! Normalize all states 
   complex*16 :: norm
   do k=1,N_st_diag
-    !call normalize(u_in(:,k),sze)
-    call normalize_complex(u_in(:,k),sze)
-    !call inner_product_complex(u_in(:,k),u_in(:,k),sze,norm)
-    !print*,k,norm
+    call normalize_complex(u_in(1,k),sze)
   enddo
+  call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
 
   ! Copy from the guess input "u_in" to the working vectors "U"
+  U=dcmplx(1d300,1d300)
   do k=1,N_st_diag
     do i=1,sze
       U(i,k) = u_in(i,k)
@@ -249,34 +249,25 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       shift  = N_st_diag*(iter-1)
       shift2 = N_st_diag*iter
    
-      !print*,iter,itertot
-      !print*,'cond',(iter > 1).or.(itertot == 1), (iter > 1), (itertot == 1)
-      !if ((iter > 1).or.(itertot == 1)) then
-        ! Compute |W_k> = \sum_i |i><i|H|u_k>
-        ! -----------------------------------
+      ! Compute |W_k> = \sum_i |i><i|H|u_k>
+      ! -----------------------------------
 
-         ! Gram-Smitt to orthogonalize all new guess with the previous vectors 
-          call ortho_qr_complex(U,size(U,1),sze,shift2)
-          call ortho_qr_complex(U,size(U,1),sze,shift2)
+      ! Gram-Schmidt to orthogonalize all new guess with the previous vectors 
+      !print*,'U'
+      !do i = 1, shift2
+      !  write(*,'(100(F8.4))') dble(U(1:sze,i))
+      !enddo
+      call ortho_qr_complex(U,size(U,1),sze,shift2)
+      call ortho_qr_complex(U,size(U,1),sze,shift2)
+      !do i = 1, shift2
+      !  call normalize_complex(U(:,i),sze)
+      !enddo
 
-          !print*,'check ortho'
-          !do k = 1, N_st_diag
-          !  do i = 1, N_st_diag
-          !  call inner_product_complex(U(:,k),U(:,i),sze,norm)
-          !  print*,k,i,norm
-          !  enddo
-          !enddo
-          !print*,'W',U(:,shift+1)
-          !print*,'U',U(:,shift+1)
-
-          !print*,'hpsi'
-         call hpsi_complex(W(:,shift+1),U(:,shift+1),N_st_diag,sze,h_mat)
-          !print*,'done'
-      !else
-         ! Already computed in update below
-      !   print*,'Already computed in update below'
-      !   continue
-      !endif
+      call hpsi_complex(W(:,shift+1),U(:,shift+1),N_st_diag,sze,h_mat)
+      !print*,'W'
+      !do i = 1, shift2
+      !  write(*,'(100(F8.4))') dble(W(1:sze,i))
+      !enddo
 
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
@@ -289,48 +280,71 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       ! Diagonalize h y = lambda y
       ! ---------------
 
-      !print*,'diag'
-      !print*,'h',h
-      !call lapack_diag(lambda,y,h,size(h,1),shift2)
-      call diag_general_complex(lambda,y,h,size(h,1),shift2,info)
-      !print*,'diag'
-      !write(*,'(100(F11.6))') lambda(1:shift2)
+      !print*,'h',maxval(cdabs(h(1:shift2,1:shift2)))
+      !print*,'h'
+      !do i = 1, shift2
+      !  write(*,'(100(F8.4))') dble(H(1:shift2,i))
+      !enddo
+      h_cp = h
+      call diag_general_complex(lambda,y,h_cp,size(h,1),shift2,info)
+      !write(*,'(100(F11.6))') dble(lambda(1:N_st_diag)) + nuclear_repulsion
+      !do i = 1, shift2
+      !  call normalize_complex(y(1,i),shift2)
+      !enddo
+
+      ! Compute Energy for each eigenvector
+      ! -----------------------------------
+
+      call zgemm('N','N',shift2,shift2,shift2,                       &
+          (1.d0,0d0), h, size(h,1), y, size(y,1),                          &
+          (0d0,0.d0), tmp, size(tmp,1))
+
+      call zgemm('C','N',shift2,shift2,shift2,                       &
+          (1.d0,0d0), y, size(y,1), tmp, size(tmp,1),                  &
+          (0.d0,0d0), h, size(h,1))
+
+      do k=1,shift2
+        lambda(k) = h(k,k)
+      enddo
+      !write(*,'(100(F11.6))') dble(lambda(1:N_st_diag)) + nuclear_repulsion
 
       ! Express eigenvectors of h in the determinant basis
       ! --------------------------------------------------
 
-      !print*,'Uy'
       call zgemm('N','N', sze, N_st_diag, shift2,                    &
-          (1.d0,0d0), U, size(U,1), y, size(y,1), (0d0,0.d0), U(:,shift2+1), size(U,1))
-      !print*,'Wy'
+          (1.d0,0d0), U, size(U,1), y, size(y,1), (0d0,0.d0), U(1,shift2+1), size(U,1))
+
       call zgemm('N','N', sze, N_st_diag, shift2,                    &
-          (1.d0,0d0), W, size(W,1), y, size(y,1), (0.d0,0d0), W(:,shift2+1), size(W,1))
+          (1.d0,0d0), W, size(W,1), y, size(y,1), (0.d0,0d0), W(1,shift2+1), size(W,1))
 
       ! Compute residual vector and davidson step
       ! -----------------------------------------
-      !print*,'residual'
+
       do k=1,N_st_diag
         do i=1,sze
-          U(i,shift2+k) =  &
-            (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
-              /(H_jj(i) - lambda (k))
-            ! Removed max here
+          if (dble(H_jj(i) - lambda (k)) >= 1d-2) then
+            U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) ) /(H_jj(i) - lambda (k))
+          else
+            U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
+             / dcmplx(1d-2, dimag(H_jj(i) - lambda (k)))
+          endif
         enddo
-        !print*,'new U',U(:,shift2+k)
 
+        !print*,maxval(cdabs(U(1:sze,shift2+k)))
         if (k <= N_st) then
-          !residual_norm(k) = u_dot_u(U(:,shift2+k),sze)
-          call inner_product_complex(U(:,shift2+k),U(:,shift2+k),sze, residual_norm(k))
+          call inner_product_complex(U(1,shift2+k),U(1,shift2+k),sze, residual_norm(k))
           to_print(1,k) = lambda(k) + nuclear_repulsion
           to_print(2,k) = residual_norm(k)
         endif
+        !call normalize_complex(U(1,shift2+k),sze)
       enddo
 
       if ((itertot>1).and.(iter == 1)) then
         !don't print 
         continue
       else
-        write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,ES12.3,1X,ES12.3,1X))') iter-1, to_print(1:2,1:N_st)
+        !write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,ES12.3,1X,ES12.3,1X))') iter-1, to_print(1:2,1:N_st)
+        write(*,'(1X,I3,1X,100(1X,F16.10,1X,ES12.3,1X))') iter-1, dble(to_print(1:2,1:N_st))
       endif
 
       ! Check convergence
@@ -354,7 +368,6 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
         converged = .True.
         exit
       endif
-
 
     enddo
 
@@ -399,12 +412,12 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   write(6,'(A)') ''
 
   call write_time(6)
-  print*,'Energies:'
-  call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
-  call check_energy(h_mat,u_in,N_st,sze)
-  print*,'c-Energies:'
-  call modified_gram_schmidt_c(u_in,N_st_diag,sze)
-  call check_c_energy(h_mat,u_in,N_st,sze)
+  !print*,'Energies:'
+  !call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
+  !call check_energy(h_mat,u_in,N_st,sze)
+  !print*,'c-Energies:'
+  !call modified_gram_schmidt_c(u_in,N_st_diag,sze)
+  !call check_c_energy(h_mat,u_in,N_st,sze)
   write(6,'(A)') ''
 
     deallocate(W)
@@ -430,7 +443,6 @@ subroutine hpsi_complex(v,u,N_st,sze,h_mat)
   complex*16, intent(inout)  :: v(sze,N_st)
   integer :: i,j,istate
   v = (0.d0, 0d0)
-  !call zgemv('N', sze, sze, (1d0,0d0), h_mat, sze, u, 1, (1d0,0d0), v, 1)
   do istate = 1, N_st
    do i = 1, sze
     do j = 1, sze
@@ -630,13 +642,13 @@ subroutine normalize_complex(u,sze)
 
   integer, intent(in) :: sze
   complex*16, intent(inout) :: u(sze)
-  complex*16 :: norm
+  complex*16 :: res
   integer :: i
 
-  call inner_product_complex(u,u,sze,norm)
+  call inner_product_complex(u,u,sze,res)
 
   do i = 1, sze
-    u(i) = u(i) * (1d0,0d0)/cdsqrt(norm)
+    u(i) = u(i) * (1d0,0d0)/cdsqrt(res)
   enddo
 
 end
@@ -695,14 +707,14 @@ subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n,info)
   complex*16, intent(in) :: H(nmax,n)
   complex*16, intent(out) :: eigvalues(n), eigvectors(nmax,n)
   integer, intent(out) ::info
-  complex*16, allocatable :: w(:), vl(:,:), vr(:,:), work(:)
+  complex*16, allocatable :: w(:), vl(:,:), vr(:,:), work(:), tmp(:)
   double precision, allocatable :: rwork(:)
   integer :: lwork,i,j
   integer, allocatable :: iorder(:)
 
   lwork = max(1,2*n)
 
-  allocate(w(n),vl(nmax,n),vr(nmax,n),work(lwork), rwork(2*n),iorder(n))
+  allocate(w(n),vl(nmax,n),vr(nmax,n),work(lwork), rwork(2*n),iorder(n), tmp(n))
   !print*,nmax,n
   !print*,size(H,1),size(H,2)
   !print*,'H',H
@@ -714,8 +726,13 @@ subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n,info)
     print*, 'the QR algorithm failed to compute all the eigenvalues.'
   endif
 
+  !print*,'e',dble(w)
+  tmp = w
   call sort_complex(w, iorder, n)
-  eigvalues = w
+
+  do i = 1, n
+    eigvalues(i) = tmp(iorder(i))
+  enddo
 
   do j = 1, n
     do i = 1, n
@@ -758,8 +775,10 @@ subroutine lapack_zggev(A,B,nmax,n,eigvalues,l_eigvectors,r_eigvectors,info)
     endif
   enddo
 
+  !print*,'e',dble(e)
   tmp = e
   call sort_complex(e, iorder, n)
+  !print*,'e',dble(e)
 
   do i = 1, n
     eigvalues(i) = tmp(iorder(i))

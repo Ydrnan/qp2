@@ -19,14 +19,15 @@ subroutine dav_complex
  N_st = N_states
  N_st_diag_in = N_states_diag
  sze = N_det
- !!!! MARK THAT u_in mut dimensioned with "N_st_diag_in" as a second dimension 
+ PROVIDE nuclear_repulsion
+ !!! MARK THAT u_in mut dimensioned with "N_st_diag_in" as a second dimension 
  allocate(u_in(sze,N_st_diag_in),H_jj(sze),energies(N_st_diag_in),s2_out(N_st_diag_in))
  !u_in = 0.d0
  !do i = 1, N_st
  ! u_in(1,i) = (1.d0,0d0)
  !enddo
  !do i = 1, sze
- ! H_jj(i) = H_matrix_all_dets_complex(i,i) + nuclear_repulsion
+ ! H_jj(i) = H_matrix_all_dets_complex(i,i)
  !enddo
  !call davidson_general_complex(u_in,H_jj,energies,sze,sze,N_st,N_st_diag_in,converged,H_matrix_all_dets_complex)
 
@@ -48,10 +49,11 @@ subroutine dav_complex
 
  double precision, allocatable :: u_in2(:,:), s2_out2(:), energies2(:)
  allocate(u_in2(sze,N_st_diag_in),energies2(N_st_diag_in),s2_out2(N_st_diag_in))
-  u_in2 = 0d0
-  do i = 1, N_st
-  u_in(1,i) = 1.d0
+ u_in2 = 0d0
+ do i = 1, N_st
+   u_in2(1,i) = 1.d0
  enddo
+ !call ortho_qr(u_in2,size(u_in2,1),sze,N_st_diag_in)
  call davidson_diag_hs2(psi_det,u_in2,s2_out2,sze,energies2,sze,N_st,N_st_diag_in,N_int,0,converged)
 
 end
