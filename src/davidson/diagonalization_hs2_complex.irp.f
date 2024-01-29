@@ -332,7 +332,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         endif
 
         ! Sign of each vector
-        !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
+        !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
         do j = shift+1, shift2
           val = 0d0
           do i = 1, sze
@@ -568,15 +568,36 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
   enddo
 
+  ! Sign of each vector
+  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
+  do j = 1, N_st_diag 
+    val = 0d0
+    do i = 1, sze
+      if (dabs(dble(U(i,j))) > dabs(val)) then
+        val = dble(U(i,j))
+        max_U(j) = dble(U(i,j))
+        pos_U(j) = i
+      endif
+    enddo
+  enddo
+  !$OMP END PARALLEL DO
+
   call nullify_small_elements_complex(sze,N_st_diag,U,size(U,1),threshold_davidson_pt2)
   call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
   call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
 
-  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
-  do k=1,N_st_diag
-    do i=1,sze
-      u_in(i,k) = U(i,k)
-    enddo
+  ! Change the sign of the guess vectors to match with the ones before the QR
+  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
+  do j = 1, N_st_diag
+    if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < -1d-30) then
+      do i = 1, sze
+        u_in(i,j) = - U(i,j)
+      enddo
+    else
+      do i = 1, sze
+        u_in(i,j) = U(i,j)
+      enddo
+    endif
   enddo
   !$OMP END PARALLEL DO
 

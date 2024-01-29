@@ -39,13 +39,15 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   complex*16                     :: to_print(2,N_st), res
   double precision               :: cpu, wall
   integer                        :: shift, shift2, itermax, istate
-  double precision               :: r1, r2, alpha
+  double precision               :: r1, r2, alpha, val
   integer                        :: nproc_target, info
   integer                        :: order(N_st_diag_in)
   double precision               :: cmax
   complex*16      , allocatable  :: U(:,:), overlap(:,:)!, S_d(:,:)
   complex*16      , pointer      :: W(:,:)
   logical                        :: disk_based
+  double precision, allocatable  :: max_U(:)
+  integer, allocatable           :: pos_U(:)
   complex*16                     :: energy_shift(N_st_diag_in*davidson_sze_max)
 
   include 'constants.include.F'
@@ -178,28 +180,16 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       U(sze,N_st_diag*itermax),                                      &
       ! Small
       h(N_st_diag*itermax,N_st_diag*itermax),                        &
-      h_cp(N_st_diag*itermax,N_st_diag*itermax),                        &
-      tmp(N_st_diag*itermax,N_st_diag*itermax),                        &
+      h_cp(N_st_diag*itermax,N_st_diag*itermax),                     &
+      tmp(N_st_diag*itermax,N_st_diag*itermax),                      &
       y(N_st_diag*itermax,N_st_diag*itermax),                        &
       residual_norm(N_st_diag),                                      &
-      lambda(N_st_diag*itermax))
-
-  !print*,'H'
-  !do i = 1, sze
-  !   do j = 1, sze
-  !      print*, i-1,j-1,REALPART(h_mat(i,j))
-  !      !write(*,'(100(F10.4))') REALPART(h_mat(i,:))
-  !   enddo
-  !enddo
-  !call diag_general_complex(lambda,y,h_mat,size(h_mat,1),sze)
-  !print*,''
-  !print*,lambda(1:sze)
-  !call abort()
+      lambda(N_st_diag*itermax),                                     &
+      max_U(N_st_diag*itermax),pos_U(N_st_diag*itermax))
 
   h = (0.d0, 0d0)
   U = (0.d0, 0d0)
   y = (0.d0, 0d0)
-
 
   ASSERT (N_st > 0)
   ASSERT (N_st_diag >= N_st)
@@ -227,7 +217,6 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   do k=1,N_st_diag
     call normalize_complex(u_in(1,k),sze)
   enddo
-  call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
 
   ! Copy from the guess input "u_in" to the working vectors "U"
   U=dcmplx(1d300,1d300)
@@ -236,7 +225,6 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       U(i,k) = u_in(i,k)
     enddo
   enddo
-
 
   do while (.not.converged)
     itertot = itertot+1
@@ -253,21 +241,35 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       ! -----------------------------------
 
       ! Gram-Schmidt to orthogonalize all new guess with the previous vectors 
-      !print*,'U'
-      !do i = 1, shift2
-      !  write(*,'(100(F8.4))') dble(U(1:sze,i))
-      !enddo
       call ortho_qr_complex(U,size(U,1),sze,shift2)
       call ortho_qr_complex(U,size(U,1),sze,shift2)
-      !do i = 1, shift2
-      !  call normalize_complex(U(:,i),sze)
-      !enddo
+
+      ! Change the sign of the guess vectors to match with the ones of the previous 
+      ! iterations
+      if (iter > 1) then
+        do j = 1, shift
+          if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < -1d-30) then
+            do i = 1, sze
+              U(i,j) = - U(i,j)
+            enddo
+            !print*,'sign change!'
+          endif
+        enddo
+      endif
+
+      ! Sign of each vector
+      do j = shift+1, shift2
+        val = 0d0
+        do i = 1, sze
+          if (dabs(dble(U(i,j))) > dabs(val)) then
+            val = dble(U(i,j))
+            max_U(j) = dble(U(i,j))
+            pos_U(j) = i
+          endif
+        enddo
+      enddo
 
       call hpsi_complex(W(:,shift+1),U(:,shift+1),N_st_diag,sze,h_mat)
-      !print*,'W'
-      !do i = 1, shift2
-      !  write(*,'(100(F8.4))') dble(W(1:sze,i))
-      !enddo
 
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
@@ -280,17 +282,8 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       ! Diagonalize h y = lambda y
       ! ---------------
 
-      !print*,'h',maxval(cdabs(h(1:shift2,1:shift2)))
-      !print*,'h'
-      !do i = 1, shift2
-      !  write(*,'(100(F8.4))') dble(H(1:shift2,i))
-      !enddo
       h_cp = h
       call diag_general_complex(lambda,y,h_cp,size(h,1),shift2,info)
-      !write(*,'(100(F11.6))') dble(lambda(1:N_st_diag)) + nuclear_repulsion
-      !do i = 1, shift2
-      !  call normalize_complex(y(1,i),shift2)
-      !enddo
 
       ! Compute Energy for each eigenvector
       ! -----------------------------------
@@ -306,7 +299,6 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       do k=1,shift2
         lambda(k) = h(k,k)
       enddo
-      !write(*,'(100(F11.6))') dble(lambda(1:N_st_diag)) + nuclear_repulsion
 
       ! Express eigenvectors of h in the determinant basis
       ! --------------------------------------------------
@@ -330,13 +322,11 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
           endif
         enddo
 
-        !print*,maxval(cdabs(U(1:sze,shift2+k)))
         if (k <= N_st) then
           call inner_product_complex(U(1,shift2+k),U(1,shift2+k),sze, residual_norm(k))
           to_print(1,k) = lambda(k) + nuclear_repulsion
           to_print(2,k) = residual_norm(k)
         endif
-        !call normalize_complex(U(1,shift2+k),sze)
       enddo
 
       if ((itertot>1).and.(iter == 1)) then
@@ -386,19 +376,32 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
         U(i,k) = u_in(i,k)
       enddo
     enddo
-    !call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-    !call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-    !do j=1,N_st_diag
-    !  k=1
-    !  do while ((k<sze).and.(U(k,j) == (0.d0,0d0)))
-    !    k = k+1
-    !  enddo
-    !  if (dble(U(k,j) * u_in(k,j)) < 0.d0) then
-    !    do i=1,sze
-    !      W(i,j) = -W(i,j)
-    !    enddo
-    !  endif
-    !enddo
+
+    do j = 1, N_st_diag
+      val = 0d0
+      do i = 1, sze
+        if (dabs(dble(U(i,j))) > dabs(val)) then
+          val = dble(U(i,j))
+          max_U(j) = dble(U(i,j))
+          pos_U(j) = i
+        endif
+      enddo
+    enddo
+
+    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+
+    do j = 1, N_st_diag
+      if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < -1d-30) then
+        do i = 1, sze
+          u_in(i,j) = - U(i,j)
+        enddo
+      else
+        do i = 1, sze
+          u_in(i,j) = U(i,j)
+        enddo
+      endif
+    enddo
   enddo
 
   do k=1,N_st
