@@ -75,43 +75,41 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   !
   ! Initial guess vectors are not necessarily orthonormal
   END_DOC
-  integer, intent(in)            :: dim_in, sze, N_st, N_st_diag_in, Nint
-  integer(bit_kind), intent(in)  :: dets_in(Nint,2,sze)
-  complex*16,  intent(in)  :: H_jj(sze)
-  complex*16,  intent(inout) :: s2_out(N_st_diag_in)
-  complex*16, intent(inout) :: u_in(dim_in,N_st_diag_in)
-  complex*16, intent(out)  :: energies(N_st_diag_in)
+  integer, intent(in)           :: dim_in, sze, N_st, N_st_diag_in, Nint
+  integer(bit_kind), intent(in) :: dets_in(Nint,2,sze)
+  complex*16,  intent(in)       :: H_jj(sze)
+  complex*16,  intent(inout)    :: s2_out(N_st_diag_in)
+  complex*16, intent(inout)     :: u_in(dim_in,N_st_diag_in)
+  complex*16, intent(out)       :: energies(N_st_diag_in)
 
-  integer                        :: iter, N_st_diag
-  integer                        :: i,j,k,l,m
-  logical, intent(inout)         :: converged
+  integer                       :: iter, N_st_diag
+  integer                       :: i,j,k,l,m
+  logical, intent(inout)        :: converged
 
-  integer                        :: k_pairs, kl
+  integer                       :: k_pairs, kl
 
-  integer                        :: iter2, itertot
-  complex*16, allocatable  :: y(:,:), h(:,:), h_p(:,:), lambda(:), s2(:), h_cp(:,:)
-  complex*8, allocatable              :: y_s(:,:)
-  complex*16, allocatable  :: s_(:,:), s_tmp(:,:), y_left(:,:), s_cp(:,:)
-  double precision               :: diag_h_mat_elem
-  complex*16, allocatable  :: residual_norm(:)
-  character*(16384)              :: write_buffer
-  complex*16               :: to_print(3,N_st)
-  double precision               :: cpu, wall
-  integer                        :: shift, shift2, itermax, istate
-  double precision               :: r1, r2, alpha, t1, t2
-  logical                        :: state_ok(N_st_diag_in*davidson_sze_max)
-  integer                        :: nproc_target, info
-  integer                        :: order(N_st_diag_in)
-  double precision               :: cmax, val
-  complex*16, allocatable  :: U(:,:), overlap(:,:), S_d(:,:)
-  double precision, allocatable ::  U_r(:,:), max_U(:)
+  integer                       :: iter2, itertot
+  complex*16, allocatable       :: y(:,:), h(:,:), h_p(:,:), lambda(:), s2(:), h_cp(:,:)
+  complex*8, allocatable        :: y_s(:,:)
+  complex*16, allocatable       :: s_(:,:), s_tmp(:,:), y_left(:,:), s_cp(:,:)
+  double precision              :: diag_h_mat_elem
+  complex*16, allocatable       :: residual_norm(:)
+  character*(16384)             :: write_buffer
+  complex*16                    :: to_print(3,N_st)
+  double precision              :: cpu, wall
+  integer                       :: shift, shift2, itermax, istate
+  double precision              :: r1, r2, alpha, t1, t2
+  logical                       :: state_ok(N_st_diag_in*davidson_sze_max)
+  integer                       :: nproc_target, info
+  integer                       :: order(N_st_diag_in)
+  double precision              :: cmax, val
+  complex*16, allocatable       :: U(:,:), overlap(:,:), S_d(:,:)
+  double precision, allocatable :: max_U(:)
   integer, allocatable          :: pos_U(:)
-  complex*16, pointer      :: W(:,:)
-  complex*8, pointer                  :: S(:,:)
-  logical                        :: disk_based
-  complex*16               :: energy_shift(N_st_diag_in*davidson_sze_max), res
-  double precision, allocatable :: y_r(:,:), s_tmp_r(:,:), lambda_r(:)
-  double precision, allocatable :: W_r(:,:), S_d_r(:,:)
+  complex*16, pointer           :: W(:,:)
+  complex*8, pointer            :: S(:,:)
+  logical                       :: disk_based
+  complex*16                    :: energy_shift(N_st_diag_in*davidson_sze_max), res
 
   include 'constants.include.F'
 
@@ -160,6 +158,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
          + 4.5d0*(N_st_diag*itermax)**2           &! h,y,y_s,s_,s_tmp
          + 2.d0*(N_st_diag*itermax)               &! s2,lambda
          + 1.d0*(N_st_diag)                       &! residual_norm
+         + 3d0*(N_st_diag*itermax)**2             &! h_cp,y_left,s_cp
+         + 2d0*(N_st_diag*itermax)                &! max_U,pos_U
                                                    ! In H_S2_u_0_nstates_zmq
          + 3.d0*(N_st_diag*N_det)                 &! u_t, v_t, s_t on collector
          + 3.d0*(N_st_diag*N_det)                 &! u_t, v_t, s_t on slave
@@ -168,6 +168,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
            ( 1.d0*(N_int*maxab)                   &! buffer
            + 3.5d0*(maxab) )                      &! singles_a, singles_b, doubles, idx
          ) / 1024.d0**3
+
 
     if (nproc_target == 0) then
       call check_mem(r1,irp_here)
@@ -241,18 +242,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
   allocate(                                                          &
       ! Large
-      U(sze,N_st_diag*itermax), U_r(sze,N_st_diag*itermax),          &
-      S_d(sze,N_st_diag),                                            &
-      y_r(N_st_diag*itermax,N_st_diag*itermax), &
-      s_tmp_r(N_st_diag*itermax,N_st_diag*itermax), &
-      lambda_r(N_st_diag*itermax),&
-      W_r(sze,N_st_diag*itermax), S_d_r(sze,N_st_diag),&
-      h_cp(N_st_diag*itermax,N_st_diag*itermax), &
-      y_left(N_st_diag*itermax,N_st_diag*itermax), &
-      s_cp(N_st_diag*itermax,N_st_diag*itermax), &
-      max_U(N_st_diag*itermax), pos_U(N_st_diag*itermax),&
-    
-      
+      U(sze,N_st_diag*itermax), S_d(sze,N_st_diag),                  &
 
       ! Small
       h(N_st_diag*itermax,N_st_diag*itermax),                        &
@@ -263,7 +253,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       residual_norm(N_st_diag),                                      &
       s2(N_st_diag*itermax),                                         &
       y_s(N_st_diag*itermax,N_st_diag*itermax),                      &
-      lambda(N_st_diag*itermax))
+      lambda(N_st_diag*itermax),                                     &
+      h_cp(N_st_diag*itermax,N_st_diag*itermax),                     &
+      y_left(N_st_diag*itermax,N_st_diag*itermax),                   &
+      s_cp(N_st_diag*itermax,N_st_diag*itermax),                     &
+      max_U(N_st_diag*itermax), pos_U(N_st_diag*itermax))
 
   h = (0.d0,0d0)
   U = (0.d0,0d0)
@@ -272,7 +266,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   s_tmp = (0.d0,0d0)
   pos_U = 0
   max_U = 0d0
-
 
   ASSERT (N_st > 0)
   ASSERT (N_st_diag >= N_st)
@@ -285,6 +278,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
   converged = .False.
 
+  ! Guess
   do k=N_st+1,N_st_diag
     do i=1,sze
         call random_number(r1)
@@ -299,19 +293,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     call normalize_complex(u_in(1,k),sze)
   enddo
   
-  call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
-
   do k=1,N_st_diag
     do i=1,sze
       U(i,k) = u_in(i,k)
     enddo
   enddo
-  do k = N_st_diag + 1, N_st_diag*itermax
-    do i = 1, sze
-      U(i,k) = (0d0,0d0) !(1d300,1d300)
-    enddo
-  enddo
-
 
   do while (.not.converged)
     itertot = itertot+1
@@ -322,38 +308,31 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     iter = 0
     do while (iter < itermax-1)
       iter += 1
-!    do iter=1,itermax-1
 
       shift  = N_st_diag*(iter-1)
       shift2 = N_st_diag*iter
 
-        !U_r = dble(U)
-        !!call ortho_qr(U_r,size(U_r,1),sze,N_st_diag)
-        !!call ortho_qr(U_r,size(U_r,1),sze,N_st_diag)
-        !call ortho_qr(U_r,size(U_r,1),sze,shift2)
-        !call ortho_qr(U_r,size(U_r,1),sze,shift2)
-        !U = dcmplx(U_r,0d0)
-
-        !print*,'U'
-        !do i = 1, shift2
-        !  write(*,'(100(F8.4))') dble(U(1:sze,i))
-        !enddo
-
+        ! Orthogonalization of the guess vectors
         call ortho_qr_complex(U,size(U,1),sze,shift2)
         call ortho_qr_complex(U,size(U,1),sze,shift2)
 
-        ! Change the sign of the vectors to match with the ones of the previous 
+        ! Change the sign of the guess vectors to match with the ones of the previous 
         ! iterations
         if (iter > 1) then
+          !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
           do j = 1, shift
             if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < -1d-30) then
-               U(:,j) = - U(:,j)
-               !print*,'sign change!'
+              do i = 1, sze
+                U(i,j) = - U(i,j)
+              enddo
+              !print*,'sign change!'
             endif
           enddo
+          !$OMP END PARALLEL DO
         endif
 
         ! Sign of each vector
+        !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
         do j = shift+1, shift2
           val = 0d0
           do i = 1, sze
@@ -364,37 +343,26 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
             endif
           enddo
         enddo
+        !$OMP END PARALLEL DO
 
-        !print*,'U'
-        !do i = 1, shift2
-        !  write(*,'(100(F8.4))') dble(U(1:sze,i))
-        !enddo
-
+        ! Computes HU
         call H_S2_u_0_nstates_openmp_complex(W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
-        !print*,'W'
-        !do i = 1, shift2
-        !  write(*,'(100(F8.4))') dble(W(1:sze,i))
-        !enddo
-        !U_r = dble(U)
-        !call H_S2_u_0_nstates_openmp(W_r(1,shift+1),S_d_r,U_r(1,shift+1),N_st_diag,sze)
-        !W = dcmplx(W_r,0d0)
-        !S_d = dcmplx(S_d_r,0d0)
 
-        !S(1:sze,shift+1:shift+N_st_diag) = real(S_d(1:sze,1:N_st_diag))
         S(1:sze,shift+1:shift+N_st_diag) = cmplx(real(dble(S_d(1:sze,1:N_st_diag))), real(dimag(S_d(1:sze,1:N_st_diag))))
 
       ! Compute s_kl = <u_k | S_l> = <u_k| S2 |u_l>
       ! -------------------------------------------
 
+       !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,k) COLLAPSE(2)
        do j=1,shift2
          do i=1,shift2
            s_(i,j) = 0.d0
            do k=1,sze
-             !s_(i,j) = s_(i,j) + U(k,i) * dble(S(k,j))
              s_(i,j) = s_(i,j) + U(k,i) * dcmplx(dble(S(k,j)),dble(aimag(S(k,j))))
            enddo
           enddo
         enddo
+        !$OMP END PARALLEL DO
 
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
@@ -402,6 +370,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
           (0.d0,0d0), h, size(h,1))
+
       call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
           (0.d0,0d0), s_tmp, size(s_tmp,1))
@@ -409,21 +378,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       ! Diagonalize h_p
       ! ---------------
 
-       !print*,'h'
-       !do i = 1, shift2
-       !  write(*,'(100(F8.4))') dble(H(1:shift2,i))
-       !enddo
-       !print*,'s'
-       !do i = 1, shift2
-       !  write(*,'(100(F8.4))') dble(s_tmp(1:shift2,i))
-       !  !print*,dble(s_tmp(i,i))
-       !enddo
        h_cp = h
        s_cp = s_tmp
-       !print*,'h',maxval(cdabs(h(1:shift2,1:shift2)))
        call lapack_zggev(h_cp,s_tmp,size(h,1),shift2,lambda,y_left,y,info)
-       !call diag_general_complex(lambda,y,h_cp,size(h,1),shift2,info)
-       !write(*,'(100(F22.16))') lambda(1:N_st) + dcmplx(nuclear_repulsion,0d0)
 
        ! Normalization to have Y^* s_tmp Y = Id
        ! => y = 1/sqrt(y^* s_tmp y)
@@ -440,11 +397,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
        do i = 1, shift2
          y(:,i) = y(:,i) / cdsqrt(s_cp(i,i))
        enddo 
-
-       !print*,'y'
-       !do i = 1, shift2
-       ! write(*,'(100(F8.4))') dble(y(:,i))
-       !enddo
 
        if (info > 0) then
          ! Numerical errors propagate. We need to reduce the number of iterations
@@ -466,7 +418,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       do k=1,shift2
         lambda(k) = h(k,k)
       enddo
-      !write(*,'(100(F22.16))') lambda(1:N_st) + dcmplx(nuclear_repulsion,0d0)
 
       ! Compute S2 for each eigenvector
       ! -------------------------------
@@ -482,7 +433,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       do k=1,shift2
         s2(k) = s_(k,k)
       enddo
-      !print*,'s2',dble(s2(1:N_st))
 
       if (only_expected_s2) then
           do k=1,shift2
@@ -517,7 +467,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('N','N', sze, N_st_diag, shift2,                    &
           (1.d0,0d0), W, size(W,1), y, size(y,1), (0.d0,0d0), W(1,shift2+1), size(W,1))
 
-      !y_s(:,:) = real(y(:,:))
       y_s(:,:) = cmplx(real(dble(y(:,:))), real(dimag(y(:,:))))
 
       call cgemm('N','N', sze, N_st_diag, shift2,                    &
@@ -526,20 +475,17 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       ! Compute residual vector and davidson step
       ! -----------------------------------------
 
+      !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
       do k=1,N_st_diag
-        !write(*,'(100(F8.4))') dble(U(:,shift2+k))
         do i=1,sze
            if (dble(H_jj(i) - lambda (k)) >= 1d-2) then 
              U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) ) /(H_jj(i) - lambda (k))
-             !/max(H_jj(i) - lambda (k),1.d-2)
-            else
-              U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
+           else
+             U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
                 / dcmplx(1d-2, dimag(H_jj(i) - lambda (k)))
-            endif
+           endif
         enddo
 
-        !write(*,'(100(F8.4))') dble(U(:,shift2+k))
-        !print*,maxval(cdabs(U(1:sze,shift2+k)))
         if (k <= N_st) then
           call inner_product_complex(U(1,shift2+k),U(1,shift2+k),sze,residual_norm(k))
           to_print(1,k) = lambda(k) + dcmplx(nuclear_repulsion,0d0)
@@ -547,6 +493,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           to_print(3,k) = residual_norm(k)
         endif
       enddo
+      !$OMP END PARALLEL DO
 
       if ((itertot>1).and.(iter == 1)) then
         !don't print
@@ -581,50 +528,57 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         exit
       endif
 
-
     enddo
 
     ! Re-contract U and update S and W
     ! --------------------------------
-    !print*,'S y_s'
+
     call cgemm('N','N', sze, N_st_diag, shift2, (1.,0.),      &
         S, size(S,1), y_s, size(y_s,1), (0.,0.), S(1,shift2+1), size(S,1))
+
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
     do k=1,N_st_diag
       do i=1,sze
         S(i,k) = S(i,shift2+k)
       enddo
     enddo
+    !$OMP END PARALLEL DO
 
-    !print*,'Wy'
     call zgemm('N','N', sze, N_st_diag, shift2, (1.d0,1d0),      &
         W, size(W,1), y, size(y,1), (0.d0,0d0), u_in, size(u_in,1))
+
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
     do k=1,N_st_diag
       do i=1,sze
         W(i,k) = u_in(i,k)
       enddo
     enddo
+    !$OMP END PARALLEL DO
 
-    !print*,'Uy'
     call zgemm('N','N', sze, N_st_diag, shift2, (1.d0,0d0),      &
         U, size(U,1), y, size(y,1), (0.d0,0d0), u_in, size(u_in,1))
 
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
     do k=1,N_st_diag
       do i=1,sze
         U(i,k) = u_in(i,k)
       enddo
     enddo
+    !$OMP END PARALLEL DO
 
   enddo
-
 
   call nullify_small_elements_complex(sze,N_st_diag,U,size(U,1),threshold_davidson_pt2)
   call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
   call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+
+  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
   do k=1,N_st_diag
     do i=1,sze
       u_in(i,k) = U(i,k)
     enddo
   enddo
+  !$OMP END PARALLEL DO
 
   do k=1,N_st_diag
     energies(k) = lambda(k)

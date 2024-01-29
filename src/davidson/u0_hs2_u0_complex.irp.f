@@ -73,6 +73,7 @@ subroutine u_0_HS2_u_0_complex(e_0,s_0,u_0,n,keys_tmp,Nint,N_st,sze)
   deallocate(u_1)
 
   complex*16 :: norm,res
+  !$OMP PARALLEL DO PRIVATE(i,norm) DEFAULT(SHARED)
   do i=1,N_st
     call inner_product_complex(u_0(1,i),u_0(1,i),n,norm)
     !norm = u_dot_u(u_0(1,i),n)
@@ -88,7 +89,7 @@ subroutine u_0_HS2_u_0_complex(e_0,s_0,u_0,n,keys_tmp,Nint,N_st,sze)
       s_0(i) = (0.d0,0d0)
     endif
   enddo
-
+  !$OMP END PARALLEL DO
   deallocate (s_vec, v_0)
 end
 

@@ -754,9 +754,14 @@ subroutine lapack_zggev(A,B,nmax,n,eigvalues,l_eigvectors,r_eigvectors,info)
   integer :: lwork,i,j
   integer, allocatable :: iorder(:)
     
-  lwork = max(1,2*n)
+  lwork = -1
+  allocate(alpha(n), beta(n), e(n), vl(nmax,n), vr(nmax,n), work(1), rwork(max(1,8*n)), iorder(n), tmp(n))
 
-  allocate(alpha(n), beta(n), e(n), vl(nmax,n), vr(nmax,n), work(lwork), rwork(max(1,8*n)), iorder(n), tmp(n))
+  call zggev('V','V', n, a, size(a,1), b, size(b,1), alpha, beta, vl, size(vl,1), vr, size(vr,1), work, lwork, rwork, info)
+
+  lwork=int(work(1))
+  deallocate(work)
+  allocate(work(lwork))
 
   call zggev('V','V', n, a, size(a,1), b, size(b,1), alpha, beta, vl, size(vl,1), vr, size(vr,1), work, lwork, rwork, info)
 
