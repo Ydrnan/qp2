@@ -837,21 +837,84 @@ BEGIN_PROVIDER [ double precision, mo_one_e_integrals_cap,(mo_num,mo_num)]
  ! Cap integrals in mo basis.
   END_DOC
 
-  mo_one_e_integrals_cap = 0.01d0
+  mo_one_e_integrals_cap = mo_wx_cap + mo_wy_cap + mo_wz_cap
+  mo_one_e_integrals_cap(1,1) = 0d0
+  mo_one_e_integrals_cap(1,:) = 0d0
+  mo_one_e_integrals_cap(:,1) = 0d0
+
+  integer :: i,j
+!  print*,'AO'
+!  do i = 1, ao_num
+!    !write(*,'(100(F12.6))') ,ao_spread_x_exact(i,:)
+!    write(*,'(100(F12.6))') ,ao_wx_cap(i,:)
+!  enddo
+!  print*,''
+!  do i = 1, ao_num
+!    !write(*,'(100(F12.6))') ,ao_spread_y_exact(i,:)
+!    write(*,'(100(F12.6))') ,ao_wy_cap(i,:)
+!  enddo
+!  print*,''
+!  do i = 1, ao_num
+!    !write(*,'(100(F12.6))') ,ao_spread_z_exact(i,:)
+!    write(*,'(100(F12.6))') ,ao_wz_cap(i,:)
+!  enddo
+!
+!  print*,'MO coef'
+!  do i = 1, ao_num
+!    write(*,'(100(F12.6))') ,mo_coef(i,:)
+!  enddo
+!
+!  print*,'MO'
+!  do i = 1, mo_num
+!    write(*,'(100(F12.6))') ,mo_wx_cap(i,:)
+!  enddo
+!  print*,''
+!  do i = 1, mo_num
+!    write(*,'(100(F12.6))') ,mo_wy_cap(i,:)
+!  enddo
+!  print*,''
+!  do i = 1, mo_num
+!    write(*,'(100(F12.6))') ,mo_wz_cap(i,:)
+!  enddo
+!  
+!  !PROVIDE ao_spread_x_exact ao_spread_y_exact ao_spread_z_exact  
+!  double precision :: norm
+!  norm = 0d0
+!  do j = 1, ao_num
+!    do i = 1, ao_num
+!      norm += (eta_cap *(ao_wx_cap(i,j) + ao_wy_cap(i,j) + ao_wz_cap(i,j)))**2
+!      !norm += (eta_cap *(ao_spread_x_exact(i,j) + ao_spread_y_exact(i,j) + ao_spread_z_exact(i,j)))**2
+!      !norm += (eta_cap *(ao_spread_x(i,j) + ao_spread_y(i,j) + ao_spread_z(i,j)))**2
+!    enddo
+!  enddo
+!  print*,'norm',dsqrt(norm)
+!  
+!
+!  print*,'CAP int'
+!  do i = 1, mo_num
+!    write(*,'(100(F12.6))') mo_one_e_integrals_cap(i,:)
+!  enddo
+  !print*,nucl_coord
+  !print*,'d',mo_spread_z +mo_spread_y+mo_spread_z
 
 END_PROVIDER
 
 BEGIN_PROVIDER [ double precision, eta_cap]
+&BEGIN_PROVIDER [ double precision, cap_box_size, (3)]
   implicit none
   BEGIN_DOC
  ! Cap strength.
   END_DOC
 
-  eta_cap = 0d0
+  eta_cap = 0.01d0
+  cap_box_size(1) = 1d0
+  cap_box_size(2) = 1d0
+  cap_box_size(3) = 1d0
 
 END_PROVIDER
 
 double precision function diag_H_mat_elem_cap(det_in,Nint)
+  use bitmasks
   implicit none
   BEGIN_DOC
   ! Computes $\langle i|W|i \rangle$.
@@ -861,7 +924,7 @@ double precision function diag_H_mat_elem_cap(det_in,Nint)
 
   integer(bit_kind)              :: hole(Nint,2)
   integer(bit_kind)              :: particle(Nint,2)
-  integer                        :: i, nexc(2), ispin
+  integer                        :: i, nexc(2), ispin,iorb
   integer                        :: occ_particle(Nint*bit_kind_size,2)
   integer                        :: occ_hole(Nint*bit_kind_size,2)
   integer(bit_kind)              :: det_tmp(Nint,2)
@@ -871,131 +934,19 @@ double precision function diag_H_mat_elem_cap(det_in,Nint)
   ASSERT (sum(popcnt(det_in(:,1))) == elec_alpha_num)
   ASSERT (sum(popcnt(det_in(:,2))) == elec_beta_num)
 
-  nexc(1) = 0
-  nexc(2) = 0
-  do i=1,Nint
-    hole(i,1)     = xor(det_in(i,1),ref_bitmask(i,1))
-    hole(i,2)     = xor(det_in(i,2),ref_bitmask(i,2))
-    particle(i,1) = iand(hole(i,1),det_in(i,1))
-    particle(i,2) = iand(hole(i,2),det_in(i,2))
-    hole(i,1)     = iand(hole(i,1),ref_bitmask(i,1))
-    hole(i,2)     = iand(hole(i,2),ref_bitmask(i,2))
-    nexc(1)       = nexc(1) + popcnt(hole(i,1))
-    nexc(2)       = nexc(2) + popcnt(hole(i,2))
-  enddo
-
-  !diag_H_mat_elem = ref_bitmask_energy
-  diag_H_mat_elem_cap = 0d0
-  if (nexc(1)+nexc(2) == 0) then
-    return
-  endif
-
-  !call debug_det(det_in,Nint)
   integer                        :: tmp(2)
+  tmp(1) = elec_alpha_num
+  tmp(2) = elec_beta_num
   !DIR$ FORCEINLINE
-  call bitstring_to_list_ab(particle, occ_particle, tmp, Nint)
-  ASSERT (tmp(1) == nexc(1))
-  ASSERT (tmp(2) == nexc(2))
-  !DIR$ FORCEINLINE
-  call bitstring_to_list_ab(hole, occ_hole, tmp, Nint)
-  ASSERT (tmp(1) == nexc(1))
-  ASSERT (tmp(2) == nexc(2))
+  call bitstring_to_list_ab(det_in, occ_particle, tmp, Nint)
 
-  det_tmp = ref_bitmask
+  diag_H_mat_elem_cap = 0d0
   do ispin=1,2
-    na = elec_num_tab(ispin)
-    nb = elec_num_tab(iand(ispin,1)+1)
-    do i=1,nexc(ispin)
-      !DIR$ FORCEINLINE
-      call ac_operator( occ_particle(i,ispin), ispin, det_tmp, diag_H_mat_elem_cap, Nint,na,nb)
-      !DIR$ FORCEINLINE
-      call a_operator ( occ_hole    (i,ispin), ispin, det_tmp, diag_H_mat_elem_cap, Nint,na,nb)
+    do i=1,sum(popcnt(det_in(:,ispin)))
+      iorb = occ_particle(i,ispin)
+      diag_H_mat_elem_cap += mo_one_e_integrals_cap(iorb,iorb)
     enddo
   enddo
-
   diag_H_mat_elem_cap = - eta_cap * diag_H_mat_elem_cap
-end
-
-subroutine a_operator_cap(iorb,ispin,key,wjj,Nint,na,nb)
-  use bitmasks
-  implicit none
-  BEGIN_DOC
-  ! Needed for :c:func:`diag_H_mat_elem_cap`.
-  END_DOC
-  integer, intent(in)            :: iorb, ispin, Nint
-  integer, intent(inout)         :: na, nb
-  integer(bit_kind), intent(inout) :: key(Nint,2)
-  double precision, intent(inout) :: wjj
-
-  integer                        :: occ(Nint*bit_kind_size,2)
-  integer                        :: other_spin
-  integer                        :: k,l,i
-  integer                        :: tmp(2)
-
-  ASSERT (iorb > 0)
-  ASSERT (ispin > 0)
-  ASSERT (ispin < 3)
-  ASSERT (Nint > 0)
-
-  k = shiftr(iorb-1,bit_kind_shift)+1
-  ASSERT (k>0)
-  l = iorb - shiftl(k-1,bit_kind_shift)-1
-  key(k,ispin) = ibclr(key(k,ispin),l)
-  other_spin = iand(ispin,1)+1
-
-  !DIR$ FORCEINLINE
-  call bitstring_to_list_ab(key, occ, tmp, Nint)
-  na = na-1
-
-  wjj = wjj - mo_one_e_integrals_cap(iorb,iorb)
-
-end
-
-subroutine ac_operator_cap(iorb,ispin,key,wjj,Nint,na,nb)
-  use bitmasks
-  implicit none
-  BEGIN_DOC
-  ! Needed for :c:func:`diag_H_mat_elem_cap`.
-  END_DOC
-  integer, intent(in)            :: iorb, ispin, Nint
-  integer, intent(inout)         :: na, nb
-  integer(bit_kind), intent(inout) :: key(Nint,2)
-  double precision, intent(inout) :: wjj
-
-  integer                        :: occ(Nint*bit_kind_size,2)
-  integer                        :: other_spin
-  integer                        :: k,l,i
-
-  if (iorb < 1) then
-    print *,  irp_here, ': iorb < 1'
-    print *,  iorb, mo_num
-    stop -1
-  endif
-  if (iorb > mo_num) then
-    print *,  irp_here, ': iorb > mo_num'
-    print *,  iorb, mo_num
-    stop -1
-  endif
-
-  ASSERT (ispin > 0)
-  ASSERT (ispin < 3)
-  ASSERT (Nint > 0)
-
-  integer                        :: tmp(2)
-  !DIR$ FORCEINLINE
-  call bitstring_to_list_ab(key, occ, tmp, Nint)
-  ASSERT (tmp(1) == elec_alpha_num)
-  ASSERT (tmp(2) == elec_beta_num)
-
-  k = shiftr(iorb-1,bit_kind_shift)+1
-  ASSERT (k >0)
-  l = iorb - shiftl(k-1,bit_kind_shift)-1
-  ASSERT (l >= 0)
-  key(k,ispin) = ibset(key(k,ispin),l)
-  other_spin = iand(ispin,1)+1
-
-  wjj = wjj + mo_one_e_integrals_cap(iorb,iorb)
-
-  na = na+1
 end
 
