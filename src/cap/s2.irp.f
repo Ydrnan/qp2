@@ -17,7 +17,7 @@ subroutine u_0_S2_u_0_complex(e_0,u_0,n,keys_tmp,Nint,N_st,sze_8)
   integer :: i,j
   allocate (v_0(sze_8,N_st))
 
-  call S2_u_0_nstates(v_0,u_0,n,keys_tmp,Nint,N_st,sze_8)
+  call S2_u_0_nstates_complex(v_0,u_0,n,keys_tmp,Nint,N_st,sze_8)
   do i=1,N_st
     call inner_product_complex(u_0(1,i),v_0(1,i),n,uv)
     call inner_product_complex(u_0(1,i),u_0(1,i),n,uu)
@@ -57,7 +57,7 @@ subroutine S2_u_0_nstates_complex(v_0,u_0,n,keys_tmp,Nint,N_st,sze_8)
   PROVIDE ref_bitmask_energy
 
   allocate (shortcut(0:n+1,2), sort_idx(n,2), sorted(Nint,n,2), version(Nint,n,2))
-  v_0 = 0.d0
+  v_0 = dcmplx(0.d0,0d0)
 
   call sort_dets_ab_v(keys_tmp, sorted(1,1,1), sort_idx(1,1), shortcut(0,1), version(1,1,1), n, Nint)
   call sort_dets_ba_v(keys_tmp, sorted(1,1,2), sort_idx(1,2), shortcut(0,2), version(1,1,2), n, Nint)
@@ -66,7 +66,7 @@ subroutine S2_u_0_nstates_complex(v_0,u_0,n,keys_tmp,Nint,N_st,sze_8)
       !$OMP PRIVATE(i,s2_tmp,j,k,jj,vt,ii,sh,sh2,ni,exa,ext,org_i,org_j,endi,sorted_i,istate)&
       !$OMP SHARED(n,u_0,keys_tmp,Nint,v_0,sorted,shortcut,sort_idx,version,N_st,sze_8)
   allocate(vt(sze_8,N_st))
-  vt = 0.d0
+  vt = dcmplx(0.d0,0d0)
 
   do sh=1,shortcut(0,1)
     !$OMP DO SCHEDULE(static,1)

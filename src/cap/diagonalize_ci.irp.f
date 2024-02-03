@@ -197,7 +197,7 @@ subroutine diagonalize_ci_cap(u_in)
        do j=1,N_det
          do i=1,N_det
            ci_electronic_energy_cap(k) +=                                &
-               CONJG(ci_eigenvectors_cap(i,k)) * ci_eigenvectors_cap(j,k) *         &
+               DCONJG(ci_eigenvectors_cap(i,k)) * ci_eigenvectors_cap(j,k) *         &
                H_matrix_all_dets_complex(i,j)
          enddo
        enddo
