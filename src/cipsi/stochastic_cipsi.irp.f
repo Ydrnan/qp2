@@ -118,6 +118,7 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call diagonalize_CI
     call save_wavefunction
     call save_energy(psi_energy_with_nucl_rep, zeros)
+    call cap()
     if (qp_stop()) exit
   enddo
 
