@@ -1,8 +1,9 @@
 
-subroutine diagonalize_ci_cap(u_in)
+subroutine diagonalize_ci_cap(u_in, energy)
 
    implicit none
    complex*16, intent(inout) :: u_in(N_det,N_states)
+   complex*16, intent(out) :: energy(N_states)
 
    complex*16, allocatable :: ci_eigenvectors_cap(:,:)
    complex*16, allocatable :: ci_s2_cap(:)
@@ -210,11 +211,57 @@ subroutine diagonalize_ci_cap(u_in)
        u_in(i,k) = ci_eigenvectors_cap(i,k)
      enddo
    enddo
-   
-   print*,'Energy of the states for eta =', eta_cap
-   do k = 1, N_states
-     write(*,'(I8,4(F22.10))') k, ci_electronic_energy_cap(k) + dcmplx(nuclear_repulsion,0d0), ci_s2_cap(k)
+
+   ! c-normalization and calculation of the energy
+   ! TODO compute S^2 with the c-normalized wf
+   if (diag_algorithm == "Davidson") then
+     complex*16, allocatable :: eigvec(:,:), eige(:)
+     complex*16 :: res
+     allocate(eigvec(N_det,N_states),eige(N_states))
+
+     eigvec = ci_eigenvectors_cap(:,1:N_states)
+     do i = 1, N_states
+       call normalize_c(eigvec(1,i),N_det)
+     enddo
+
+     complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:)
+     allocate(W(N_det,N_states),h(N_states,N_states),S_d(N_det,N_states))
+
+     call H_S2_u_0_nstates_openmp_complex(W,S_d,eigvec,N_states,N_det)
+     call zgemm('T','N', N_states, N_states, N_det,                       &
+       (1.d0,0d0), eigvec, size(eigvec,1), W, size(W,1),                          &
+       (0.d0,0d0), h, size(h,1))
+
+     do i = 1, N_states
+       ci_electronic_energy_cap(i) = h(i,i)
+     enddo     
+
+     call zgemm('T','N', N_states, N_states, N_det,                       &
+       (1.d0,0d0), eigvec, size(eigvec,1), S_d, size(S_d,1),                          &
+       (0.d0,0d0), h, size(h,1))
+
+     do i = 1, N_states
+       ci_s2_cap(i) = h(i,i)
+     enddo     
+
+     call overlap_cap(eigvec)   
+
+     deallocate(W,eigvec,eige,h,S_d)
+   endif 
+
+   do i = 1, N_states
+     energy(i) = ci_electronic_energy_cap(i) + dcmplx(nuclear_repulsion,0d0)
    enddo
-   print*,''
+   
+   write(6,*) ''
+   write(6,'(A32,ES12.3)') ' Energy of the states for eta = ', eta_cap
+   write(6,'(A65)') '=======  ================ ================  ========== =========='
+   write(6,'(A65)') ' State      Energy (Re)      Energy (Im)     S^2 (Re)   S^2 (Im) '
+   write(6,'(A65)') '=======  ================ ================  ========== =========='
+   do k = 1, N_states
+     write(6,'(1X,I4,3X,F16.10,1X,F16.10,2X,ES10.2,1X,ES10.2)') k, ci_electronic_energy_cap(k) + dcmplx(nuclear_repulsion,0d0), ci_s2_cap(k)
+   enddo
+   write(6,'(A65)') '=======  ================ ================  ========== =========='
+   write(6,*) ''
 
 end

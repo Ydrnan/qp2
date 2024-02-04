@@ -95,7 +95,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   double precision              :: diag_h_mat_elem
   complex*16, allocatable       :: residual_norm(:)
   character*(16384)             :: write_buffer
-  complex*16                    :: to_print(3,N_st)
+  double precision              :: to_print(5,N_st)
   double precision              :: cpu, wall
   integer                       :: shift, shift2, itermax, istate
   double precision              :: r1, r2, alpha, t1, t2
@@ -205,23 +205,23 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   !---------------
 
   write(6,'(A)') ''
-  write_buffer = '====='
+  write_buffer = '======'
   do i=1,N_st
-    write_buffer = trim(write_buffer)//' ================ ================ =========== =========== =========== ==========='
+    write_buffer = trim(write_buffer)//' ================ ================ ========== ========== =========='
   enddo
   write(6,'(A)') write_buffer(1:6+41*N_st*2)
-  write_buffer = 'Iter'
+  write_buffer = ' Iter'
   do i=1,N_st
     if (i==1) then
-    write_buffer = trim(write_buffer)//'       Energy                           S^2                   Residual             '
+    write_buffer = trim(write_buffer)//'       Energy                           S^2                 Residual             '
     else
-    write_buffer = trim(write_buffer)//'                   Energy                           S^2                   Residual             '
+    write_buffer = trim(write_buffer)//'      Energy                           S^2                 Residual             '
     endif
   enddo
   write(6,'(A)') write_buffer(1:6+41*N_st*2)
-  write_buffer = '====='
+  write_buffer = '======'
   do i=1,N_st
-    write_buffer = trim(write_buffer)//' ================ ================ =========== =========== =========== ==========='
+    write_buffer = trim(write_buffer)//' ================ ================ ========== ========== =========='
   enddo
   write(6,'(A)') write_buffer(1:6+41*N_st*2)
 
@@ -488,9 +488,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
         if (k <= N_st) then
           call inner_product_complex(U(1,shift2+k),U(1,shift2+k),sze,residual_norm(k))
-          to_print(1,k) = lambda(k) + dcmplx(nuclear_repulsion,0d0)
-          to_print(2,k) = s2(k)
-          to_print(3,k) = residual_norm(k)
+          to_print(1,k) = dble(lambda(k)) + nuclear_repulsion
+          to_print(2,k) = dimag(lambda(k))
+          to_print(3,k) = dble(s2(k))
+          to_print(4,k) = dimag(s2(k))
+          to_print(5,k) = dble(residual_norm(k))
         endif
       enddo
       !$OMP END PARALLEL DO
@@ -499,8 +501,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         !don't print
         continue
       else
-        !write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,F11.6,1X,F11.6,1X,ES11.3,1X,ES11.3))') iter-1, to_print(1:3,1:N_st)
-        write(*,'(1X,I3,1X,100(1X,F16.10,1X,F11.6,1X,ES11.3))') iter-1, dble(to_print(1:3,1:N_st))
+        write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,ES10.2,1X,ES10.2,1X,ES10.2))') iter-1, to_print(1:5,1:N_st)
+        !write(*,'(1X,I3,1X,100(1X,F16.10,1X,F11.6,1X,ES11.3))') iter-1, dble(to_print(1:3,1:N_st))
       endif
 
       ! Check convergence
@@ -607,7 +609,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   enddo
   write_buffer = '======'
   do i=1,N_st
-    write_buffer = trim(write_buffer)//' ================  ================ =========== =========== =========== ==========='
+    write_buffer = trim(write_buffer)//' ================ ================ ========== ========== =========='
   enddo
   write(6,'(A)') trim(write_buffer)
   write(6,'(A)') ''
