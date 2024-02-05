@@ -3,36 +3,40 @@ subroutine cap()
   implicit none
 
   complex*16, allocatable :: psi_cap(:,:), energy(:), l_energy(:,:)
-  double precision :: write_e(2,N_states)
-  integer :: i,j,n_eta
+  double precision :: write_e(2,N_states), eta_cap_save, eta
+  integer :: i,j
 
-  if (cap_onset_x >= 0d0 .and. cap_onset_y >= 0d0 .and. cap_onset_z >= 0d0) then
-    if (eta_min >= 0d0 .and. eta_max > eta_min .and. eta_step_size > 0d0) then
+  if (do_cap) then
+    if (cap_onset_x >= 0d0 .and. cap_onset_y >= 0d0 .and. cap_onset_z >= 0d0 &
+      .and. eta_cap >= 0d0 .and. n_steps_cap >= 1) then
 
-      n_eta = 0
-      eta_cap = eta_min
-      do while (eta_cap <= eta_max)
-        eta_cap += eta_step_size
-        n_eta += 1
-      enddo
+      if (n_steps_cap > 1 .and. eta_step_size <= 0d0) then
+        print*,'Please set eta_step_size > 0d0 if you want screen a range of eta values'
+        call abort()
+      endif
 
-      allocate(psi_cap(N_det,N_states),energy(N_states), l_energy(N_states,n_eta))
+      allocate(psi_cap(N_det,N_states),energy(N_states), l_energy(N_states,n_steps_cap))
 
       psi_cap = dcmplx(psi_coef,0d0)
 
-      eta_cap = eta_min
-      touch eta_cap
-      do i = 1, n_eta
+      print*,'eta_cap',eta_cap
+      eta_cap_save = eta_cap
+      do i = 1, n_steps_cap
 
         call diagonalize_ci_cap(psi_cap,energy)
         l_energy(1:N_states,i) = energy(1:N_states)
 
-        eta_cap += eta_step_size
-        touch eta_cap
+        if (n_steps_cap > 1) then
+          eta_cap += eta_step_size
+          touch eta_cap
+        endif
       enddo
+      eta_cap = eta_cap_save
+      touch eta_cap
 
       write(*,*) ''
-      write(*,'(A,I8)') ' Number of eta values: ',n_eta
+      write(*,'(A,I8)') ' Number of eta values: ', n_steps_cap
+      write(*,'(A,I8)') ' Number of states: ', N_states
       write(*,*) ''
       write(*,'(A15)',advance='no') '============== '
       do i = 1, N_states-1
@@ -66,14 +70,16 @@ subroutine cap()
       enddo
       write(*,'(A33)') ' =============================== '
 
-      eta_cap = eta_min
-      do i = 1, n_eta
+      eta = eta_cap
+      do i = 1, n_steps_cap
         do j = 1, N_states
           write_e(1,j) = dble(l_energy(j,i))
           write_e(2,j) = dimag(l_energy(j,i))
         enddo
-        write(*,'(ES12.4,3X,100(F16.10,1X,F14.10,2X))') eta_cap, write_e(1:2,1:N_states)
-        eta_cap += eta_step_size
+        write(*,'(ES12.4,3X,100(F16.10,1X,F14.10,2X))') eta, write_e(1:2,1:N_states)
+        if (n_steps_cap > 1) then
+          eta += eta_step_size
+        endif
       enddo
 
       write(*,'(A15)',advance='no') '============== '
@@ -85,20 +91,28 @@ subroutine cap()
         
       deallocate(psi_cap,energy,l_energy)
 
-    else if (eta_cap >= 0d0) then
-
-      allocate(psi_cap(N_det,N_states),energy(N_states))
-      psi_cap = dcmplx(psi_coef,0d0)
-
-      call diagonalize_ci_cap(psi_cap,energy)
-        
-      deallocate(psi_cap)
-
     else
+
       print*,''
-      print*,'Parameters for eta not setted correctly, no CAP calculation will be performed.'
+      print*,'Parameters for cap calculation not setted correctly.'
+      if (cap_onset_x < 0d0) then
+        print*,'cap_onset_x must be >= 0d0'
+      endif
+      if (cap_onset_y < 0d0) then
+        print*,'cap_onset_y must be >= 0d0'
+      endif
+      if (cap_onset_z < 0d0) then
+        print*,'cap_onset_z must be >= 0d0'
+      endif
+      if (eta_cap < 0d0) then
+        print*,'eta_cap must be >= 0d0'
+      endif
+      if (n_steps_cap < 0d0) then
+        print*,'n_steps_cap must be >= 1'
+      endif
       print*,''
-      return  
+      call abort()
+
     endif
   endif
 end
