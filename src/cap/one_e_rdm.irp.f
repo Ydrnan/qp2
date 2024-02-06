@@ -15,26 +15,24 @@ subroutine mo_one_rdm_cap(coefs, N_st, sze, rdm)
   n(1) = elec_alpha_num
   n(2) = elec_beta_num
 
-  rdm = 0d0
-  do j = 1, N_det
-    do i = 1, N_det
-      call get_excitation_degree(psi_det(1,1,i),psi_det(1,1,j),degree,N_int) 
-      if (degree == 0) then
-        call bitstring_to_list_ab(psi_det(1,1,i), occ, n, N_int)
-        do s = 1, 2
-          do l = 1, n(s)
-            do k = 1, N_st
+  do k = 1, N_st
+    rdm(:,:,k) = 0d0
+    do j = 1, N_det
+      do i = 1, N_det
+        call get_excitation_degree(psi_det(1,1,i),psi_det(1,1,j),degree,N_int) 
+        if (degree == 0) then
+          call bitstring_to_list_ab(psi_det(1,1,i), occ, n, N_int)
+          do s = 1, 2
+            do l = 1, n(s)
               rdm(occ(l,s),occ(l,s),k) += coefs(i,k)**2
             enddo
           enddo
-        enddo
-      else if (degree == 1) then
-        call get_excitation(psi_det(1,1,i),psi_det(1,1,j),exc,degree,phase,N_int) 
-        call decode_exc(exc,degree,h1,p1,h2,p2,s1,s2)
-        do k = 1, N_st
+        else if (degree == 1) then
+          call get_excitation(psi_det(1,1,i),psi_det(1,1,j),exc,degree,phase,N_int) 
+          call decode_exc(exc,degree,h1,p1,h2,p2,s1,s2)
           rdm(h1,p1,k) += phase * coefs(i,k) * coefs(j,k)
-        enddo
-      endif
+        endif
+      enddo
     enddo
   enddo
 
@@ -43,18 +41,24 @@ subroutine mo_one_rdm_cap(coefs, N_st, sze, rdm)
     trace += rdm(i,i,1)
   enddo
   print*,'trace',trace
-  !print*,'rdm'
-  !do i = 1, mo_num
-  !  write(*,'(100(F12.4))') rdm(i,:,1)
-  !enddo
-  !print*,'qp rdm'
-  !do i = 1, mo_num
-  !  write(*,'(100(F12.4))') one_e_dm_mo(i,:)
-  !enddo
-  !print*,'qp rdm'
-  !do i = 1, mo_num
-  !  write(*,'(100(F12.4))') dm(i,:,1,1)
-  !enddo
+  print*,'rdm'
+  do i = 1, mo_num
+    write(*,'(100(ES12.4))') rdm(i,:,1)
+  enddo
+
+  complex*16, allocatable :: one_e_dm_mo_cap(:,:,:)
+
+  allocate(one_e_dm_mo_cap(mo_num,mo_num,N_states))
+
+  call get_one_e_rdm_mo_cap(coefs, one_e_dm_mo_cap)
+  print*,'rdm'
+  do i = 1, mo_num
+    write(*,'(100(ES12.4))') one_e_dm_mo_cap(i,:,1)
+  enddo
+  print*,'qp rdm'
+  do i = 1, mo_num
+    write(*,'(100(ES12.4))') dm(i,:,1,1)
+  enddo
 
 end
 

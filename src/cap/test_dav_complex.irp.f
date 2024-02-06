@@ -91,26 +91,26 @@ subroutine dav_complex
 !   write(*,'(100(F12.6))') eigvectors(i,1) / eigvectors(1,1)
 !enddo
 !
- !complex*16, allocatable :: rdm(:,:,:)
- !allocate(rdm(mo_num,mo_num,sze))
- !call modified_gram_schmidt_c(eigvectors,sze,sze)
- !call mo_one_rdm_cap(eigvectors, sze, sze, rdm)
+ complex*16, allocatable :: rdm(:,:,:)
+ allocate(rdm(mo_num,mo_num,sze))
+ call modified_gram_schmidt_c(eigvectors,sze,sze)
+ call mo_one_rdm_cap(eigvectors, sze, sze, rdm)
 
- !complex*16, allocatable :: tmpc(:,:), w(:,:)
- ! complex*16 :: trace
- !allocate(tmpc(mo_num,mo_num),w(mo_num,mo_num))
- !w = dcmplx(0d0,mo_one_e_integrals_cap)
- !do j = 1, 8
- !  tmpc = matmul(rdm(:,:,j),w)
- !  !do i = 1, mo_num
- !  !  write(*,'(100(F12.6))') tmpc(i,:)
- !  !enddo 
- !  trace = (0d0,0d0)
- !  do i = 1, mo_num
- !    trace += tmpc(i,i)
- !  enddo
- !  write(*,'(I8,F12.6,F12.6)') j, eta_cap * trace
- !enddo
+ complex*16, allocatable :: tmpc(:,:), w(:,:)
+  complex*16 :: trace
+ allocate(tmpc(mo_num,mo_num),w(mo_num,mo_num))
+ w = dcmplx(0d0,mo_one_e_integrals_cap)
+ do j = 1, 8
+   tmpc = matmul(rdm(:,:,j),w)
+   !do i = 1, mo_num
+   !  write(*,'(100(F12.6))') tmpc(i,:)
+   !enddo 
+   trace = (0d0,0d0)
+   do i = 1, mo_num
+     trace += tmpc(i,i)
+   enddo
+   write(*,'(I8,F16.10,F16.10)') j, eta_cap * trace * (0.5d0,0d0)
+ enddo
 
  !print*,'c-Energies:'
  !call modified_gram_schmidt_c(eigvectors,sze,sze)

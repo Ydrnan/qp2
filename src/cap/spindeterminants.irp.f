@@ -39,17 +39,22 @@ subroutine get_psi_bilinear_matrix_transp_values_cap(psi_coef_cap,psi_bilinear_m
   ! format.
   END_DOC
   complex*16, intent(in)  :: psi_coef_cap(N_det,N_states)
-  complex*16, intent(out) :: psi_bilinear_matrix_transp_values_cap(N_det,N_states)   
+  complex*16, intent(out) :: psi_bilinear_matrix_transp_values_cap(N_det,N_states)
+  complex*16, allocatable :: psi_bilinear_matrix_values_cap(:,:)
   integer                        :: i,k
+
+  allocate(psi_bilinear_matrix_values_cap(N_det,N_states))
+  call get_psi_bilinear_matrix_values_cap(psi_coef_cap,psi_bilinear_matrix_values_cap)
 
   !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i,k)
   do k=1,N_states
     !$OMP DO
     do i=1,N_det
-      psi_bilinear_matrix_transp_values(i,k) = psi_coef_cap(psi_bilinear_matrix_transp_order(i),k)
+      psi_bilinear_matrix_transp_values_cap(i,k) = psi_bilinear_matrix_values_cap(psi_bilinear_matrix_transp_order(i),k)
     enddo
     !$OMP ENDDO NOWAIT
   enddo
   !$OMP END PARALLEL
 
+  deallocate(psi_bilinear_matrix_values_cap)
 end

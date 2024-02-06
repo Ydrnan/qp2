@@ -393,3 +393,18 @@ subroutine test_ortho_qr_complex2(A, lda, m, n)
   deallocate(tau,work)
 
 end
+
+complex*16 function trace_complex(a,n)
+  implicit none
+
+  integer, intent(in) :: n
+  complex*16, intent(in) :: a(n,n)
+    
+  integer :: i
+
+  trace_complex = (0d0,0d0)
+  do i = 1, n
+    trace_complex += a(i,i)
+  enddo
+
+end

@@ -83,10 +83,11 @@ BEGIN_PROVIDER [ double precision, mo_one_e_integrals_cap,(mo_num,mo_num)]
  ! Cap integrals in mo basis.
   END_DOC
 
-  mo_one_e_integrals_cap = mo_wx_cap + mo_wy_cap + mo_wz_cap
-  mo_one_e_integrals_cap(1,1) = 0d0
-  mo_one_e_integrals_cap(1,:) = 0d0
-  mo_one_e_integrals_cap(:,1) = 0d0
+  mo_one_e_integrals_cap = mo_ints_cap_alpha + mo_ints_cap_beta
+  !mo_one_e_integrals_cap = mo_wx_cap + mo_wy_cap + mo_wz_cap
+  !mo_one_e_integrals_cap(1,1) = 0d0
+  !mo_one_e_integrals_cap(1,:) = 0d0
+  !mo_one_e_integrals_cap(:,1) = 0d0
 
   integer :: i,j
 !  print*,'AO'

@@ -1,4 +1,24 @@
-subroutine get_one_e_rdm_mo_cap(psi_coef_cap, one_e_dm_mo_alpha_cap, one_e_dm_mo_beta_cap)
+subroutine get_one_e_rdm_mo_cap(psi_coef_cap, one_e_dm_mo_cap)
+
+  implicit none
+
+  complex*16, intent(in) :: psi_coef_cap(N_det,N_int)
+  complex*16, intent(out) :: one_e_dm_mo_cap(mo_num,mo_num,N_states)
+
+  complex*16, allocatable :: one_e_dm_mo_alpha_cap(:,:,:), one_e_dm_mo_beta_cap(:,:,:)
+  
+  allocate(one_e_dm_mo_alpha_cap(mo_num,mo_num,N_states))
+  allocate(one_e_dm_mo_beta_cap(mo_num,mo_num,N_states))
+
+  call get_one_e_rdm_mo_ab_cap(psi_coef_cap, one_e_dm_mo_alpha_cap, one_e_dm_mo_beta_cap)
+
+  one_e_dm_mo_cap = one_e_dm_mo_alpha_cap + one_e_dm_mo_beta_cap
+
+  deallocate(one_e_dm_mo_alpha_cap,one_e_dm_mo_beta_cap)
+
+end
+
+subroutine get_one_e_rdm_mo_ab_cap(psi_coef_cap, one_e_dm_mo_alpha_cap, one_e_dm_mo_beta_cap)
 
   implicit none
  

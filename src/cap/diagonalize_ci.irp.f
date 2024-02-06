@@ -214,19 +214,19 @@ subroutine diagonalize_ci_cap(u_in, energy)
 
    ! c-normalization and calculation of the energy
    ! TODO compute S^2 with the c-normalized wf
+   complex*16, allocatable :: eigvec(:,:), eige(:)
+   complex*16 :: res
+   allocate(eigvec(N_det,N_states),eige(N_states))
+
+   eigvec = ci_eigenvectors_cap(:,1:N_states)
+   do i = 1, N_states
+     call normalize_c(eigvec(1,i),N_det)
+   enddo
+
+   complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:)
+   allocate(W(N_det,N_states),h(N_states,N_states),S_d(N_det,N_states))
+
    if (diag_algorithm == "Davidson") then
-     complex*16, allocatable :: eigvec(:,:), eige(:)
-     complex*16 :: res
-     allocate(eigvec(N_det,N_states),eige(N_states))
-
-     eigvec = ci_eigenvectors_cap(:,1:N_states)
-     do i = 1, N_states
-       call normalize_c(eigvec(1,i),N_det)
-     enddo
-
-     complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:)
-     allocate(W(N_det,N_states),h(N_states,N_states),S_d(N_det,N_states))
-
      call H_S2_u_0_nstates_openmp_complex(W,S_d,eigvec,N_states,N_det)
      call zgemm('T','N', N_states, N_states, N_det,                       &
        (1.d0,0d0), eigvec, size(eigvec,1), W, size(W,1),                          &
@@ -243,11 +243,29 @@ subroutine diagonalize_ci_cap(u_in, energy)
      do i = 1, N_states
        ci_s2_cap(i) = h(i,i)
      enddo     
+   endif
 
-     call overlap_cap(eigvec)   
+   call overlap_cap(eigvec)   
 
-     deallocate(W,eigvec,eige,h,S_d)
-   endif 
+   complex*16, allocatable :: rdm_cap(:,:,:), gw(:,:), tmp_w(:,:)
+   allocate(rdm_cap(mo_num,mo_num,N_states),gw(mo_num,mo_num),tmp_w(mo_num,mo_num))
+   !call mo_one_rdm_cap(eigvec, N_states, N_det, rdm_cap)
+   call get_one_e_rdm_mo_cap(eigvec, rdm_cap)
+
+   complex*16 :: first_order_e(N_states), trace_complex
+
+   tmp_w = dcmplx(0d0,mo_one_e_integrals_cap)
+
+   write(*,*) ''
+   do i = 1, N_states
+     gw = (0.5d0,0d0) * matmul(rdm_cap(1:mo_num,1:mo_num,i),tmp_w)
+     first_order_e(i) = ci_electronic_energy_cap(i) - dcmplx(dble(eta_cap * trace_complex(gw,mo_num)),0d0)
+     first_order_e(i) = ci_electronic_energy_cap(i) + dcmplx(0d0,dimag(eta_cap * trace_complex(gw,mo_num)))
+     write(*,'(A,I8,F16.10,F16.10)') 'First order correction:', i ,eta_cap * trace_complex(gw,mo_num)
+   enddo
+   write(*,*) ''
+
+   deallocate(W,eigvec,eige,h,S_d,rdm_cap,tmp_w)
 
    do i = 1, N_states
      energy(i) = ci_electronic_energy_cap(i) + dcmplx(nuclear_repulsion,0d0)
@@ -262,6 +280,15 @@ subroutine diagonalize_ci_cap(u_in, energy)
      write(6,'(1X,I4,3X,F16.10,1X,F16.10,2X,ES10.2,1X,ES10.2)') k, ci_electronic_energy_cap(k) + dcmplx(nuclear_repulsion,0d0), ci_s2_cap(k)
    enddo
    write(6,'(A65)') '=======  ================ ================  ========== =========='
+   write(6,*) ''
+
+   write(6,'(A42)') '=======  ================ ================'
+   write(6,'(A42)') ' State        U (Re)           U (Im)     '
+   write(6,'(A42)') '=======  ================ ================'
+   do k = 1, N_states
+     write(6,'(1X,I4,3X,F16.10,1X,F16.10)') k, first_order_e(k) + dcmplx(nuclear_repulsion,0d0)
+   enddo
+   write(6,'(A42)') '=======  ================ ================'
    write(6,*) ''
 
 end
