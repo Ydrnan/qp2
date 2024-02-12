@@ -70,7 +70,7 @@ subroutine diagonalize_ci_cap(u_in, energy)
 
        call davidson_diag_HS2_complex(psi_det,ci_eigenvectors_cap_tmp, ci_s2_cap_tmp, &
          size(ci_eigenvectors_cap_tmp,1),ci_electronic_energy_cap_tmp,               &
-         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,0,converged)
+         N_det,min(N_det,N_states),min(N_det,N_states_diag),N_int,converged)
 
        ci_electronic_energy_cap(1:N_states_diag_save) = ci_electronic_energy_cap_tmp(1:N_states_diag_save)
        ci_eigenvectors_cap(1:N_det,1:N_states_diag_save) = ci_eigenvectors_cap_tmp(1:N_det,1:N_states_diag_save)
@@ -189,7 +189,7 @@ subroutine diagonalize_ci_cap(u_in, energy)
            ci_eigenvectors_cap(i,j) = eigenvectors(i,j)
          enddo
          ci_electronic_energy_cap(j) = eigenvalues(j)
-     write(*,'(I8,2(F22.10))') j, ci_electronic_energy_cap(j) + dcmplx(nuclear_repulsion,0d0)
+         write(*,'(I8,2(F22.10))') j, ci_electronic_energy_cap(j) + dcmplx(nuclear_repulsion,0d0)
        enddo
      endif
 
@@ -245,8 +245,6 @@ subroutine diagonalize_ci_cap(u_in, energy)
      enddo     
    endif
 
-   call overlap_cap(eigvec)   
-
    complex*16, allocatable :: rdm_cap(:,:,:), gw(:,:), tmp_w(:,:)
    allocate(rdm_cap(mo_num,mo_num,N_states),gw(mo_num,mo_num),tmp_w(mo_num,mo_num))
    !call mo_one_rdm_cap(eigvec, N_states, N_det, rdm_cap)
@@ -260,7 +258,7 @@ subroutine diagonalize_ci_cap(u_in, energy)
    do i = 1, N_states
      gw = (0.5d0,0d0) * matmul(rdm_cap(1:mo_num,1:mo_num,i),tmp_w)
      first_order_e(i) = ci_electronic_energy_cap(i) - dcmplx(dble(eta_cap * trace_complex(gw,mo_num)),0d0)
-     first_order_e(i) = ci_electronic_energy_cap(i) + dcmplx(0d0,dimag(eta_cap * trace_complex(gw,mo_num)))
+     first_order_e(i) = first_order_e(i) + dcmplx(0d0,dimag(eta_cap * trace_complex(gw,mo_num)))
      write(*,'(A,I8,F16.10,F16.10)') 'First order correction:', i ,eta_cap * trace_complex(gw,mo_num)
    enddo
    write(*,*) ''
