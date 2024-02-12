@@ -436,7 +436,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
       if (only_expected_s2) then
           do k=1,shift2
-            state_ok(k) = (dabs(dble(s2(k))-expected_s2) < 0.6d0)
+            state_ok(k) = ((dabs(dble(s2(k))-expected_s2) < 0.6d0) .and. (dabs(dimag(s2(k))) < 0.1d0))
           enddo
       else
         do k=1,size(state_ok)
