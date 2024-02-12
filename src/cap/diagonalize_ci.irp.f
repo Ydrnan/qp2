@@ -250,16 +250,20 @@ subroutine diagonalize_ci_cap(u_in, energy)
    !call mo_one_rdm_cap(eigvec, N_states, N_det, rdm_cap)
    call get_one_e_rdm_mo_cap(eigvec, rdm_cap)
 
-   complex*16 :: first_order_e(N_states), trace_complex
+   complex*16 :: first_order_e(N_states), trace
+   complex*16, external :: trace_complex
+   double precision :: corr_re, corr_im
 
-   tmp_w = dcmplx(0d0,mo_one_e_integrals_cap)
+   tmp_w = dcmplx(mo_one_e_integrals_cap,0d0)
 
    write(*,*) ''
    do i = 1, N_states
      gw = (0.5d0,0d0) * matmul(rdm_cap(1:mo_num,1:mo_num,i),tmp_w)
-     first_order_e(i) = ci_electronic_energy_cap(i) - dcmplx(dble(eta_cap * trace_complex(gw,mo_num)),0d0)
-     first_order_e(i) = first_order_e(i) + dcmplx(0d0,dimag(eta_cap * trace_complex(gw,mo_num)))
-     write(*,'(A,I8,F16.10,F16.10)') 'First order correction:', i ,eta_cap * trace_complex(gw,mo_num)
+     trace = eta_cap * trace_complex(gw,mo_num)
+     corr_re = dimag(trace)
+     corr_im = - dble(trace)
+     first_order_e(i) = ci_electronic_energy_cap(i) - dcmplx(corr_re,corr_im)
+     write(*,'(A,I8,F16.10,F16.10)') 'First order correction:', i, dcmplx(corr_re,corr_im)
    enddo
    write(*,*) ''
 
