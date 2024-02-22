@@ -41,88 +41,99 @@ subroutine dav_complex
  ! Lapack
  complex*16, allocatable :: eigvalues(:), eigvectors(:,:), h(:,:),h_cp(:,:)
  double precision, allocatable :: h_im(:,:), tmp(:,:)
- allocate(eigvalues(sze),eigvectors(sze,sze),h(sze,sze), h_im(sze,sze),h_cp(sze,sze))
+ allocate(eigvalues(sze),eigvectors(sze,sze))!,h(sze,sze), h_im(sze,sze),h_cp(sze,sze))
 
- !do i = 1, sze
- !   write(*,'(100(F12.6))') H_matrix_all_dets_complex(i,:)
- !enddo
- call diag_general_complex(eigvalues,eigvectors,H_matrix_all_dets_complex,sze,sze,info)
- eigvalues += dcmplx(nuclear_repulsion,0d0)
- print*,'Exact energies:'
- do i = 1, min(10,N_det)
-    write(*,'(I6,100(F18.10))') i, eigvalues(i)
- enddo
-
- !h = dcmplx(H_matrix_all_dets,0d0)
- !
- !mo_one_e_integrals = mo_one_e_integrals_cap
- !touch mo_one_e_integrals psi_det
- !PROVIDE H_matrix_all_dets
- !h_im = H_matrix_all_dets
- !mo_one_e_integrals = 0d0
- !touch mo_one_e_integrals psi_det
- !PROVIDE H_matrix_all_dets
- !h_im = h_im - H_matrix_all_dets
- !h = h + dcmplx(0d0, - eta_cap * h_im)
  !!do i = 1, sze
- !!   write(*,'(100(F12.6))') dble(h(i,:))
+ !!   write(*,'(100(F12.6))') H_matrix_all_dets_complex(i,:)
  !!enddo
- !! print*,'imag'
- !!do i = 1, sze
- !!   write(*,'(100(F12.6))') dimag(h(i,:))
- !!enddo
-
- !h_cp = h
- !call diag_general_complex(eigvalues,eigvectors,h,sze,sze,info)
-
+ !call diag_general_complex(eigvalues,eigvectors,H_matrix_all_dets_complex,sze,sze,info)
  !eigvalues += dcmplx(nuclear_repulsion,0d0)
  !print*,'Exact energies:'
  !do i = 1, min(10,N_det)
  !   write(*,'(I6,100(F18.10))') i, eigvalues(i)
  !enddo
+ !u_in = 0.d0
+ !u_in(1:sze,1:N_st) = eigvectors(1:sze,1:N_st)
+ !call  diagonalize_ci_cap(u_in, energies)
 
-! do i = 1, sze
-!   call print_det(psi_det(1,1,i),N_int)
-!   write(*,'(100(F12.6))') eigvectors(i,1) / eigvectors(1,1)
-!enddo
-! call modified_gram_schmidt_c(eigvectors,sze,sze)
-! do i = 1, sze
-!   call print_det(psi_det(1,1,i),N_int)
-!   write(*,'(100(F12.6))') eigvectors(i,1) / eigvectors(1,1)
-!enddo
-!
- complex*16, allocatable :: rdm(:,:,:)
- allocate(rdm(mo_num,mo_num,sze))
- call modified_gram_schmidt_c(eigvectors,sze,sze)
- call mo_one_rdm_cap(eigvectors, sze, sze, rdm)
+ !!h = dcmplx(H_matrix_all_dets,0d0)
+ !!
+ !!mo_one_e_integrals = mo_one_e_integrals_cap
+ !!touch mo_one_e_integrals psi_det
+ !!PROVIDE H_matrix_all_dets
+ !!h_im = H_matrix_all_dets
+ !!mo_one_e_integrals = 0d0
+ !!touch mo_one_e_integrals psi_det
+ !!PROVIDE H_matrix_all_dets
+ !!h_im = h_im - H_matrix_all_dets
+ !!h = h + dcmplx(0d0, - eta_cap * h_im)
+ !!!do i = 1, sze
+ !!!   write(*,'(100(F12.6))') dble(h(i,:))
+ !!!enddo
+ !!! print*,'imag'
+ !!!do i = 1, sze
+ !!!   write(*,'(100(F12.6))') dimag(h(i,:))
+ !!!enddo
 
- complex*16, allocatable :: tmpc(:,:), w(:,:)
-  complex*16 :: trace
- allocate(tmpc(mo_num,mo_num),w(mo_num,mo_num))
- w = dcmplx(0d0,mo_one_e_integrals_cap)
- do j = 1, 8
-   tmpc = matmul(rdm(:,:,j),w)
-   !do i = 1, mo_num
-   !  write(*,'(100(F12.6))') tmpc(i,:)
-   !enddo 
-   trace = (0d0,0d0)
-   do i = 1, mo_num
-     trace += tmpc(i,i)
-   enddo
-   write(*,'(I8,F16.10,F16.10)') j, eta_cap * trace * (0.5d0,0d0)
- enddo
+ !!h_cp = h
+ !!call diag_general_complex(eigvalues,eigvectors,h,sze,sze,info)
+
+ !!eigvalues += dcmplx(nuclear_repulsion,0d0)
+ !!print*,'Exact energies:'
+ !!do i = 1, min(10,N_det)
+ !!   write(*,'(I6,100(F18.10))') i, eigvalues(i)
+ !!enddo
+
+!! do i = 1, sze
+!!   call print_det(psi_det(1,1,i),N_int)
+!!   write(*,'(100(F12.6))') eigvectors(i,1) / eigvectors(1,1)
+!!enddo
+!! call modified_gram_schmidt_c(eigvectors,sze,sze)
+!! do i = 1, sze
+!!   call print_det(psi_det(1,1,i),N_int)
+!!   write(*,'(100(F12.6))') eigvectors(i,1) / eigvectors(1,1)
+!!enddo
+!!
+ !complex*16, allocatable :: rdm(:,:,:)
+ !allocate(rdm(mo_num,mo_num,sze))
+ !call modified_gram_schmidt_c(eigvectors,sze,sze)
+ !call mo_one_rdm_cap(eigvectors, sze, sze, rdm)
+
+ !complex*16, allocatable :: tmpc(:,:), w(:,:)
+ ! complex*16 :: trace
+ !allocate(tmpc(mo_num,mo_num),w(mo_num,mo_num))
+ !w = dcmplx(0d0,mo_one_e_integrals_cap)
+ !do j = 1, 8
+ !  tmpc = matmul(rdm(:,:,j),w)
+ !  !do i = 1, mo_num
+ !  !  write(*,'(100(F12.6))') tmpc(i,:)
+ !  !enddo 
+ !  trace = (0d0,0d0)
+ !  do i = 1, mo_num
+ !    trace += tmpc(i,i)
+ !  enddo
+ !  write(*,'(I8,F16.10,F16.10)') j, eta_cap * trace * (0.5d0,0d0)
+ !enddo
 
  !print*,'c-Energies:'
  !call modified_gram_schmidt_c(eigvectors,sze,sze)
  !call check_c_energy(h_cp,eigvectors,sze,sze)
+ 
+ call diagonalize_ci()
 
  u_in = (0d0,0d0)
  do i = 1, N_st
-  u_in(1,i) = (1.d0,0d0)
+  u_in(1:sze,1:N_st) = dcmplx(psi_coef(1:sze,1:N_st),0d0)
  enddo
  call davidson_diag_hs2_complex(psi_det,u_in,s2_out,sze,energies,sze,N_st,N_st_diag_in,N_int,converged)
- !u_in2 = dble(u_in)
+ call  diagonalize_ci_cap(u_in, energies)
+ !u_in2 = 0d0
+ !u_in2(1:sze,1:N_st) = psi_coef
  !call davidson_diag_hs2(psi_det,u_in2,s2_out2,sze,energies2,sze,N_st,N_st_diag_in,N_int,0,converged)
+ 
+ !!u_in = dcmplx(u_in2,0d0)
+ !u_in(1:sze,1:N_st) = dcmplx(u_in2,0d0)
+ !call overlap_cap(u_in) 
 
  !u_in2 = 0d0
  !do i = 1, N_st

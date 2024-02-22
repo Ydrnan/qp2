@@ -219,16 +219,18 @@ subroutine diagonalize_ci_cap(u_in, energy)
    allocate(eigvec(N_det,N_states),eige(N_states))
 
    eigvec = ci_eigenvectors_cap(:,1:N_states)
-   do i = 1, N_states
-     call normalize_c(eigvec(1,i),N_det)
-   enddo
 
-   complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:)
-   allocate(W(N_det,N_states),h(N_states,N_states),S_d(N_det,N_states))
+   !call qr_decomposition_c(eigvec,N_det,N_states)
+
+   !call overlap_cap(eigvec)
+
+   complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:), prefactor(:)
+   allocate(W(N_det,N_states),h(N_states,N_states),S_d(N_det,N_states),prefactor(N_states))
 
    if (diag_algorithm == "Davidson") then
      call H_S2_u_0_nstates_openmp_complex(W,S_d,eigvec,N_states,N_det)
-     call zgemm('T','N', N_states, N_states, N_det,                       &
+
+     call zgemm('C','N', N_states, N_states, N_det,                       &
        (1.d0,0d0), eigvec, size(eigvec,1), W, size(W,1),                          &
        (0.d0,0d0), h, size(h,1))
 
@@ -236,18 +238,26 @@ subroutine diagonalize_ci_cap(u_in, energy)
        ci_electronic_energy_cap(i) = h(i,i)
      enddo     
 
-     call zgemm('T','N', N_states, N_states, N_det,                       &
+     call zgemm('C','N', N_states, N_states, N_det,                       &
        (1.d0,0d0), eigvec, size(eigvec,1), S_d, size(S_d,1),                          &
        (0.d0,0d0), h, size(h,1))
 
      do i = 1, N_states
        ci_s2_cap(i) = h(i,i)
      enddo     
+   else
+     call hpsi_complex(W,eigvec,N_states,N_det,H_matrix_all_dets_complex) 
+     call zgemm('T','N', N_states, N_states, N_det,                       &
+       (1.d0,0d0), eigvec, size(eigvec,1), W, size(W,1),                          &
+       (0.d0,0d0), h, size(h,1))
+
+     do i = 1, N_states
+       ci_electronic_energy_cap(i) = h(i,i)
+     enddo
    endif
 
    complex*16, allocatable :: rdm_cap(:,:,:), gw(:,:), tmp_w(:,:)
    allocate(rdm_cap(mo_num,mo_num,N_states),gw(mo_num,mo_num),tmp_w(mo_num,mo_num))
-   !call mo_one_rdm_cap(eigvec, N_states, N_det, rdm_cap)
    call get_one_e_rdm_mo_cap(eigvec, rdm_cap)
 
    complex*16 :: first_order_e(N_states), trace
