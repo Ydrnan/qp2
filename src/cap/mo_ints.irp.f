@@ -83,65 +83,6 @@ BEGIN_PROVIDER [ double precision, mo_one_e_integrals_cap,(mo_num,mo_num)]
  ! Cap integrals in mo basis.
   END_DOC
 
-  mo_one_e_integrals_cap = mo_ints_cap_alpha + mo_ints_cap_beta
-  !mo_one_e_integrals_cap = mo_wx_cap + mo_wy_cap + mo_wz_cap
-  !mo_one_e_integrals_cap(1,1) = 0d0
-  !mo_one_e_integrals_cap(1,:) = 0d0
-  !mo_one_e_integrals_cap(:,1) = 0d0
-
-  integer :: i,j
-!  print*,'AO'
-!  do i = 1, ao_num
-!    !write(*,'(100(F12.6))') ,ao_spread_x_exact(i,:)
-!    write(*,'(100(F12.6))') ,ao_wx_cap(i,:)
-!  enddo
-!  print*,''
-!  do i = 1, ao_num
-!    !write(*,'(100(F12.6))') ,ao_spread_y_exact(i,:)
-!    write(*,'(100(F12.6))') ,ao_wy_cap(i,:)
-!  enddo
-!  print*,''
-!  do i = 1, ao_num
-!    !write(*,'(100(F12.6))') ,ao_spread_z_exact(i,:)
-!    write(*,'(100(F12.6))') ,ao_wz_cap(i,:)
-!  enddo
-!
-!  print*,'MO coef'
-!  do i = 1, ao_num
-!    write(*,'(100(F12.6))') ,mo_coef(i,:)
-!  enddo
-!
-!  print*,'MO'
-!  do i = 1, mo_num
-!    write(*,'(100(F12.6))') ,mo_wx_cap(i,:)
-!  enddo
-!  print*,''
-!  do i = 1, mo_num
-!    write(*,'(100(F12.6))') ,mo_wy_cap(i,:)
-!  enddo
-!  print*,''
-!  do i = 1, mo_num
-!    write(*,'(100(F12.6))') ,mo_wz_cap(i,:)
-!  enddo
-!  
-!  !PROVIDE ao_spread_x_exact ao_spread_y_exact ao_spread_z_exact  
-!  double precision :: norm
-!  norm = 0d0
-!  do j = 1, ao_num
-!    do i = 1, ao_num
-!      norm += (eta_cap *(ao_wx_cap(i,j) + ao_wy_cap(i,j) + ao_wz_cap(i,j)))**2
-!      !norm += (eta_cap *(ao_spread_x_exact(i,j) + ao_spread_y_exact(i,j) + ao_spread_z_exact(i,j)))**2
-!      !norm += (eta_cap *(ao_spread_x(i,j) + ao_spread_y(i,j) + ao_spread_z(i,j)))**2
-!    enddo
-!  enddo
-!  print*,'norm',dsqrt(norm)
-!  
-!
-!  print*,'CAP int'
-!  do i = 1, mo_num
-!    write(*,'(100(F12.6))') mo_one_e_integrals_cap(i,:)
-!  enddo
-  !print*,nucl_coord
-  !print*,'d',mo_spread_z +mo_spread_y+mo_spread_z
+  mo_one_e_integrals_cap = 0.5d0 * (mo_ints_cap_alpha + mo_ints_cap_beta)
 
 END_PROVIDER

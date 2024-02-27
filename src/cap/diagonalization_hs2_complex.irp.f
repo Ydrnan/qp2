@@ -335,6 +335,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
 
   do while (.not.converged)
     itertot = itertot+1
+    print*,'itertot',itertot
+    print*,'itermax',itermax
     if (itertot == 8) then
       exit
     endif
@@ -583,6 +585,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           converged = dabs(maxval(dble(residual_norm(1:N_st)))) < threshold_davidson
         endif
       endif
+      print*,'Converged',converged
 
       do k=1,N_st
         if (dble(residual_norm(k)) > 1.d8) then
@@ -638,43 +641,51 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     !$OMP END PARALLEL DO
 
-  enddo
+    ! Sign of each vector
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
+    do j = 1, N_st_diag 
+      val = 0d0
+      do i = 1, sze
+        if (dabs(dble(U(i,j))) > dabs(val)) then
+          val = dble(U(i,j))
+          max_U(j) = val
+          pos_U(j) = i
+        endif
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
 
-  ! Sign of each vector
-  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
-  do j = 1, N_st_diag 
-    val = 0d0
-    do i = 1, sze
-      if (dabs(dble(U(i,j))) > dabs(val)) then
-        val = dble(U(i,j))
-        max_U(j) = val
-        pos_U(j) = i
+    call nullify_small_elements_complex(sze,N_st_diag,U,size(U,1),threshold_davidson_pt2)
+
+    ! Orthogonalization seems to lead to problem when looking at the energy of some states
+    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+
+    ! Change the sign of the guess vectors to match with the ones before the QR
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
+    do j = 1, N_st_diag
+      !print*,j,dble(U(pos_U(j),j)),sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j)))
+      if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
+        do i = 1, sze
+          u_in(i,j) = - U(i,j)
+        enddo
+      else
+        do i = 1, sze
+          u_in(i,j) = U(i,j)
+        enddo
       endif
     enddo
-  enddo
-  !$OMP END PARALLEL DO
+    !$OMP END PARALLEL DO
 
-  call nullify_small_elements_complex(sze,N_st_diag,U,size(U,1),threshold_davidson_pt2)
-
-  ! Orthogonalization seems to lead to problem when looking at the energy of some states
-  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-
-  ! Change the sign of the guess vectors to match with the ones before the QR
-  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
-  do j = 1, N_st_diag
-    !print*,j,dble(U(pos_U(j),j)),sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j)))
-    if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
-      do i = 1, sze
-        u_in(i,j) = - U(i,j)
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
+    do k=1,N_st_diag
+      do i=1,sze
+        U(i,k) = u_in(i,k)
       enddo
-    else
-      do i = 1, sze
-        u_in(i,j) = U(i,j)
-      enddo
-    endif
+    enddo
+    !$OMP END PARALLEL DO
+
   enddo
-  !$OMP END PARALLEL DO
 
   do k=1,N_st_diag
     energies(k) = lambda(k)

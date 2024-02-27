@@ -13,7 +13,6 @@ subroutine i_W_j_single_spin_cap(key_i,key_j,Nint,spin,wij)
   double precision               :: phase
 
   call get_single_excitation_spin(key_i(1,spin),key_j(1,spin),exc,phase,Nint)
-  !wij = mo_one_e_integrals_cap(exc(1,1),exc(1,2)) * phase
   if (spin == 1) then
      wij = mo_ints_cap_alpha(exc(1,1),exc(1,2)) * phase
   else
@@ -50,12 +49,6 @@ double precision function diag_H_mat_elem_cap(det_in,Nint)
   call bitstring_to_list_ab(det_in, occ_particle, tmp, Nint)
 
   diag_H_mat_elem_cap = 0d0
-  !do ispin=1,2
-  !  do i=1,sum(popcnt(det_in(:,ispin)))
-  !    iorb = occ_particle(i,ispin)
-  !    diag_H_mat_elem_cap += mo_one_e_integrals_cap(iorb,iorb)
-  !  enddo
-  !enddo
 
   ! alpha part
   do i=1,sum(popcnt(det_in(:,1)))

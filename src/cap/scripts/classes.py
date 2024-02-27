@@ -2,14 +2,17 @@
 import sys
 
 class Energy:
-    def __init__(self,eta,E_re,E_im):
-        if type(eta) != float or type(E_re) != float or type(E_im) != float:
+    def __init__(self,eta,E_re,E_im,C_re,C_im):
+        if type(eta) != float or type(E_re) != float or type(E_im) != float \
+        or type(C_re) != float or type(C_im) != float:
             print("Invalid type when creating Energy class object.")
             sys.exit()
             
         self.eta = eta
         self.re = E_re
         self.im = E_im
+        self.c_re = C_re
+        self.c_im = C_im
 
 class Energies:
     def __init__(self,n_eta, l_energy):

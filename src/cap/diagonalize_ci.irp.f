@@ -1,9 +1,9 @@
 
-subroutine diagonalize_ci_cap(u_in, energy)
+subroutine diagonalize_ci_cap(u_in, energy, corr)
 
    implicit none
    complex*16, intent(inout) :: u_in(N_det,N_states)
-   complex*16, intent(out) :: energy(N_states)
+   complex*16, intent(out) :: energy(N_states), corr(N_states)
 
    complex*16, allocatable :: ci_eigenvectors_cap(:,:)
    complex*16, allocatable :: ci_s2_cap(:)
@@ -213,14 +213,13 @@ subroutine diagonalize_ci_cap(u_in, energy)
    enddo
 
    ! c-normalization and calculation of the energy
-   ! TODO compute S^2 with the c-normalized wf
    complex*16, allocatable :: eigvec(:,:), eige(:)
    complex*16 :: res
    allocate(eigvec(N_det,N_states),eige(N_states))
 
    eigvec = ci_eigenvectors_cap(:,1:N_states)
 
-   !call qr_decomposition_c(eigvec,N_det,N_states)
+   call qr_decomposition_c(eigvec,N_det,N_states)
 
    !call overlap_cap(eigvec)
 
@@ -230,7 +229,7 @@ subroutine diagonalize_ci_cap(u_in, energy)
    if (diag_algorithm == "Davidson") then
      call H_S2_u_0_nstates_openmp_complex(W,S_d,eigvec,N_states,N_det)
 
-     call zgemm('C','N', N_states, N_states, N_det,                       &
+     call zgemm('T','N', N_states, N_states, N_det,                       &
        (1.d0,0d0), eigvec, size(eigvec,1), W, size(W,1),                          &
        (0.d0,0d0), h, size(h,1))
 
@@ -238,7 +237,7 @@ subroutine diagonalize_ci_cap(u_in, energy)
        ci_electronic_energy_cap(i) = h(i,i)
      enddo     
 
-     call zgemm('C','N', N_states, N_states, N_det,                       &
+     call zgemm('T','N', N_states, N_states, N_det,                       &
        (1.d0,0d0), eigvec, size(eigvec,1), S_d, size(S_d,1),                          &
        (0.d0,0d0), h, size(h,1))
 
@@ -268,10 +267,11 @@ subroutine diagonalize_ci_cap(u_in, energy)
 
    write(*,*) ''
    do i = 1, N_states
-     gw = (0.5d0,0d0) * matmul(rdm_cap(1:mo_num,1:mo_num,i),tmp_w)
+     gw = matmul(rdm_cap(1:mo_num,1:mo_num,i),tmp_w)
      trace = eta_cap * trace_complex(gw,mo_num)
      corr_re = dimag(trace)
      corr_im = - dble(trace)
+     corr(i) = - dcmplx(corr_re,corr_im)
      first_order_e(i) = ci_electronic_energy_cap(i) - dcmplx(corr_re,corr_im)
      write(*,'(A,I8,F16.10,F16.10)') 'First order correction:', i, dcmplx(corr_re,corr_im)
    enddo

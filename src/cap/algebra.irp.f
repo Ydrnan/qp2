@@ -9,48 +9,32 @@ subroutine qr_decomposition_c(A,m,n)
 
   allocate(R(n,n))
 
-  !$omp parallel &
-  !$omp shared(R,A,m,n) &
-  !$omp private(i,j,k) &
-  !$omp default(none)  
-  
-  !$omp do 
   do j = 1, n
     do i = 1, n
        R = (0d0,0d0)
     enddo
   enddo
-  !$omp end do
 
   do j = 1, n
     do i = 1, j-1
-      !$omp do
       do k = 1, m
         R(i,j) = R(i,j) + A(k,i) * A(k,j)
       enddo
-      !$omp end do
-      !$omp do
       do k = 1, m
         !A(:,j) = A(:,j) - R(i,j) * A(:,i)
         A(k,j) = A(k,j) - R(i,j) * A(k,i)
       enddo
-      !$omp end do
     enddo
 
-    !$omp do
     do k = 1, m
       R(j,j) = R(j,j) + A(k,j) * A(k,j)
     enddo
-    !$omp end do
     R(j,j) = cdsqrt(R(j,j))
-    !$omp do
     do k = 1, m
       !A(:,j) = A(:,j) / R(j,j)
       A(k,j) = A(k,j) / R(j,j)
     enddo
-    !$omp end do
   enddo
-  !$omp end parallel
 
   deallocate(R)
 

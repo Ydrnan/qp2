@@ -56,9 +56,8 @@ if __name__ == "__main__":
             first = True
             while i < len(buff):
 
+                # Jump to the cap energies
                 i = go_to_match(buff,i,"Number of eta values:")
-
-                # Jump to the values
                 i += 8
                 buff_eta = buff[i:i+n_eta]
                 a = []
@@ -66,30 +65,52 @@ if __name__ == "__main__":
                     for val in line.split():
                         a.append(val)
                 a = np.asarray(a, dtype=float, order='F')
-                a = a.reshape((n_eta,2*n_states+1))
+                E_eta = a.reshape((n_eta,2*n_states+1))
+
+                # Jump to the energy corrections
+                i = go_to_match(buff,i,"#### Energy corrections ###")
+                i += 8
+                buff_corr = buff[i:i+n_eta]
+                a = []
+                for line in buff_corr:
+                    for val in line.split():
+                        a.append(val)
+                a = np.asarray(a, dtype=float, order='F')
+                corr = a.reshape((n_eta,2*n_states+1))
 
                 # N_det
-                i = go_to_match(buff,i,"Summary at N_det =")    
-                n_det = int(buff[i].split()[-1])
+                i = try_go_to_match(buff,i,"Summary at N_det =")
+                if i < len(buff):
+                    n_det = int(buff[i].split()[-1])
+                else:
+                    n_det = 0
 
                 # E                    
-                i = go_to_match(buff,i,"# E ")
-                l_str_E = buff[i].split()[2:n_states+2]
-                l_E = [float(e) for e in l_str_E]
+                i = try_go_to_match(buff,i,"# E ")
+                if i < len(buff):
+                    l_str_E = buff[i].split()[2:n_states+2]
+                    l_E = [float(e) for e in l_str_E]
+                else:
+                    l_E = [0.0 for j in range(n_states)]
 
                 # PT2
                 i += 3
-                l_str_pt2 = buff[i].split()[2:2*n_states+2]
-                l_pt2 = [float(e) for e in l_str_pt2[::2]]
+                if i < len(buff):
+                    l_str_pt2 = buff[i].split()[2:2*n_states+2]
+                    l_pt2 = [float(e) for e in l_str_pt2[::2]]
+                else:
+                    l_pt2 = [0.0 for j in range(n_states)]
 
                 l_states = []
-                l_eta = a[:,0]
+                l_eta = E_eta[:,0]
                 for j,E,pt2 in zip(range(1, 2*n_states+1, 2),l_E,l_pt2):
                     l_energy = []
-                    l_re = a[:,j]
-                    l_im = a[:,j+1]
-                    for eta, re, im in zip(l_eta,l_re,l_im):
-                        l_energy.append(Energy(float(eta),float(re),float(im)))
+                    l_re = E_eta[:,j]
+                    l_im = E_eta[:,j+1]
+                    l_corr_re = corr[:,j]
+                    l_corr_im = corr[:,j+1]
+                    for eta, re, im, c_re, c_im in zip(l_eta,l_re,l_im,l_corr_re,l_corr_im):
+                        l_energy.append(Energy(float(eta),float(re),float(im),float(c_re),float(c_im)))
  
                     energies = Energies(n_eta,l_energy)
                     state = (j+1)//2
@@ -110,11 +131,11 @@ if __name__ == "__main__":
             for state in step.states:
                 print(state.n_det,state.E,state.pt2,state.state)
                 for e in state.energies.energies:
-                    print(e.eta, e.re, e.im)
+                    print(e.eta, e.re, e.im, e.c_re, e.c_im)
                     
-                    data.append([state.state, e.eta, e.re, e.im, state.n_det, state.E, state.pt2])
+                    data.append([state.state, e.eta, e.re, e.im, e.c_re, e.c_im, state.n_det, state.E, state.pt2])
 
-    df = pd.DataFrame(data, columns=['state','eta','Re(E_cap)','Im(E_cap)','N_det','E','PT2'])
+    df = pd.DataFrame(data, columns=['state','eta','Re(E_cap)','Im(E_cap)','Re(Corr_E_cap)','Im(Corr_E_cap)','N_det','E','PT2'])
     
     print(df)
     N_det = df['N_det'].unique().tolist()
@@ -123,10 +144,19 @@ if __name__ == "__main__":
 
     print(N_det, states, val_eta)
 
-    last_pt_df = df[(df['N_det'] == 7473) & (df['state'] == 2)]    
+    df = df[(df['N_det'] == N_det[-1])]    
 
-    print(last_pt_df)
+    #print(last_pt_df)
 
-    last_pt_df.plot(kind = 'scatter', x = 'eta', y = 'Re(E_cap)')
-    plt.show()
+    #df.plot(kind = 'scatter', x = 'Re(E_cap)', y = 'Im(E_cap)')
+    data = np.zeros((n_eta,n_states*4+1), order='F')
+    data[:,0] = val_eta
+    for i in range(n_states):
+        df_s = df[(df['state'] == i+1)]
+        cols = df_s[['Re(E_cap)','Im(E_cap)','Re(Corr_E_cap)','Im(Corr_E_cap)']].to_numpy()
+        data[:,1+i*4:1+(i+1)*4] = cols
+
+    for row in data:
+        row_str = ', '.join(map(str, row))
+        print(row_str)
 

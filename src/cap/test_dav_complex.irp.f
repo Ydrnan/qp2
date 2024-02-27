@@ -12,7 +12,7 @@ end
 
 subroutine dav_complex
  implicit none
- complex*16, allocatable :: u_in(:,:), H_jj(:), energies(:), s2_out(:)
+ complex*16, allocatable :: u_in(:,:), H_jj(:), energies(:), s2_out(:), corr(:)
  integer :: sze,N_st,N_st_diag_in
  logical :: converged
  integer :: i,j,info
@@ -25,7 +25,7 @@ subroutine dav_complex
 
  !!! MARK THAT u_in mut dimensioned with "N_st_diag_in" as a second dimension 
  allocate(u_in2(sze,N_st_diag_in),energies2(N_st_diag_in),s2_out2(N_st_diag_in))
- allocate(u_in(sze,N_st_diag_in),H_jj(sze),energies(N_st_diag_in),s2_out(N_st_diag_in))
+ allocate(u_in(sze,N_st_diag_in),H_jj(sze),energies(N_st_diag_in),s2_out(N_st_diag_in),corr(N_st_diag_in))
 
  u_in = 0.d0
  do i = 1, N_st
@@ -54,7 +54,7 @@ subroutine dav_complex
  !enddo
  !u_in = 0.d0
  !u_in(1:sze,1:N_st) = eigvectors(1:sze,1:N_st)
- !call  diagonalize_ci_cap(u_in, energies)
+ !call  diagonalize_ci_cap(u_in, energies,corr)
 
  !!h = dcmplx(H_matrix_all_dets,0d0)
  !!
@@ -126,7 +126,7 @@ subroutine dav_complex
   u_in(1:sze,1:N_st) = dcmplx(psi_coef(1:sze,1:N_st),0d0)
  enddo
  call davidson_diag_hs2_complex(psi_det,u_in,s2_out,sze,energies,sze,N_st,N_st_diag_in,N_int,converged)
- call  diagonalize_ci_cap(u_in, energies)
+ call  diagonalize_ci_cap(u_in, energies,corr)
  !u_in2 = 0d0
  !u_in2(1:sze,1:N_st) = psi_coef
  !call davidson_diag_hs2(psi_det,u_in2,s2_out2,sze,energies2,sze,N_st,N_st_diag_in,N_int,0,converged)
