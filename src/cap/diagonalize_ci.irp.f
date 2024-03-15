@@ -219,14 +219,28 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
 
    eigvec = ci_eigenvectors_cap(:,1:N_states)
 
-   call qr_decomposition_c(eigvec,N_det,N_states)
+   call qr_decomposition_c(eigvec,size(eigvec,1),N_det,N_states)
 
    !call overlap_cap(eigvec)
 
-   complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:), prefactor(:)
-   allocate(W(N_det,N_states),h(N_states,N_states),S_d(N_det,N_states),prefactor(N_states))
+   complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:), prefactor(:), residue(:,:), H_jj(:)
+   double precision, external     :: diag_H_mat_elem
+   allocate(W(N_det,N_states),h(N_states,N_states),S_d(N_det,N_states),prefactor(N_states), residue(N_det,N_states), H_jj(N_det))
+
+  !$OMP PARALLEL DEFAULT(NONE)                                       &
+      !$OMP  SHARED(N_det,H_jj, psi_det,N_int)                    &
+      !$OMP  PRIVATE(i)
+  !$OMP DO SCHEDULE(static)
+  do i=1, N_det
+    H_jj(i)  = dcmplx(diag_H_mat_elem(psi_det(1,1,i),N_int), 0d0)
+  enddo
+  !$OMP END DO
+  !$OMP END PARALLEL
+
 
    if (diag_algorithm == "Davidson") then
+
+     ! E = U^T H U 
      call H_S2_u_0_nstates_openmp_complex(W,S_d,eigvec,N_states,N_det)
 
      call zgemm('T','N', N_states, N_states, N_det,                       &
@@ -237,13 +251,31 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
        ci_electronic_energy_cap(i) = h(i,i)
      enddo     
 
+     ! Check the residue of U^T H U since we are using U^* H U in Davidson...     
+     do i = 1, N_states
+       residue(:,i) = (h(i,i) * eigvec(:,i) - W(:,i)) / (H_jj(:) - h(i,i))
+     enddo
+
+     write(*,'(A)') ''
+     write(*,'(A)') ' Residue of (Psi|H|Psi)/(Psi|Psi):'
+     write(*,'(A)') ' ======= ========= ========='
+     write(*,'(A)') '  State   Re(Res)   Im(Res) '
+     write(*,'(A)') ' ======= ========= ========='
+     do i = 1, N_states
+       call inner_prod_c(residue(1,i),residue(1,i), N_det, res)
+       write(*,'(1X,I4,4X,ES8.1,2X,ES8.1)') i, dble(res), dimag(res)
+     enddo
+     write(*,'(A)') ' ======= ========= ========='
+
+     ! S^2
      call zgemm('T','N', N_states, N_states, N_det,                       &
        (1.d0,0d0), eigvec, size(eigvec,1), S_d, size(S_d,1),                          &
        (0.d0,0d0), h, size(h,1))
 
      do i = 1, N_states
        ci_s2_cap(i) = h(i,i)
-     enddo     
+     enddo
+
    else
      call hpsi_complex(W,eigvec,N_states,N_det,H_matrix_all_dets_complex) 
      call zgemm('T','N', N_states, N_states, N_det,                       &
@@ -277,8 +309,6 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
    enddo
    write(*,*) ''
 
-   deallocate(W,eigvec,eige,h,S_d,rdm_cap,tmp_w)
-
    do i = 1, N_states
      energy(i) = ci_electronic_energy_cap(i) + dcmplx(nuclear_repulsion,0d0)
    enddo
@@ -302,5 +332,11 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
    enddo
    write(6,'(A42)') '=======  ================ ================'
    write(6,*) ''
+
+   ! We also need to know the dominant determinants for the states since they are
+   ! swapping because of the CAP...
+   call ref_idx_complex(psi_det,eigvec,N_det,N_states,N_int) 
+
+   deallocate(W,eigvec,eige,h,S_d,rdm_cap,tmp_w,residue)
 
 end

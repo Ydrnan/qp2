@@ -67,13 +67,15 @@ BEGIN_PROVIDER [ double precision, mo_ints_cap_alpha,(mo_num,mo_num)]
   integer :: i,j
 
   mo_ints_cap_alpha = mo_wx_cap + mo_wy_cap + mo_wz_cap
+  mo_ints_cap_alpha(1:elec_beta_num,:) = 0d0
+  mo_ints_cap_alpha(:,1:elec_beta_num) = 0d0
   mo_ints_cap_beta = mo_ints_cap_alpha
 
-  mo_ints_cap_alpha(1:elec_alpha_num,:) = 0d0
-  mo_ints_cap_alpha(:,1:elec_alpha_num) = 0d0
-   
-  mo_ints_cap_beta(1:elec_beta_num,:) = 0d0
-  mo_ints_cap_beta(:,1:elec_beta_num) = 0d0
+  !mo_ints_cap_alpha(1:elec_alpha_num,:) = 0d0
+  !mo_ints_cap_alpha(:,1:elec_alpha_num) = 0d0
+  ! 
+  !mo_ints_cap_beta(1:elec_beta_num,:) = 0d0
+  !mo_ints_cap_beta(:,1:elec_beta_num) = 0d0
 
 END_PROVIDER
 

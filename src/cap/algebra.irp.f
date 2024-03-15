@@ -1,17 +1,21 @@
-subroutine qr_decomposition_c(A,m,n)
+subroutine qr_decomposition_c(A,lda,m,n)
   implicit none
 
-  integer, intent(in) ::  m,n 
-  complex*16, intent(inout) :: A(m,n)
+  integer, intent(in) ::  lda,m,n 
+  complex*16, intent(inout) :: A(lda,n)
 
   complex*16, allocatable :: R(:,:)
   integer :: i,j,k
 
   allocate(R(n,n))
 
+  !do i = 1, lda
+  !  write(*,'(100(ES12.4))') A(i,:)
+  !enddo
+
   do j = 1, n
     do i = 1, n
-       R = (0d0,0d0)
+       R(i,j) = (0d0,0d0)
     enddo
   enddo
 
@@ -19,6 +23,7 @@ subroutine qr_decomposition_c(A,m,n)
     do i = 1, j-1
       do k = 1, m
         R(i,j) = R(i,j) + A(k,i) * A(k,j)
+        !R(i,j) = R(i,j) + dconjg(A(k,i)) * A(k,j)
       enddo
       do k = 1, m
         !A(:,j) = A(:,j) - R(i,j) * A(:,i)
@@ -28,6 +33,7 @@ subroutine qr_decomposition_c(A,m,n)
 
     do k = 1, m
       R(j,j) = R(j,j) + A(k,j) * A(k,j)
+      !R(j,j) = R(j,j) + dconjg(A(k,j)) * A(k,j)
     enddo
     R(j,j) = cdsqrt(R(j,j))
     do k = 1, m
@@ -37,6 +43,160 @@ subroutine qr_decomposition_c(A,m,n)
   enddo
 
   deallocate(R)
+
+end
+
+subroutine normalize_xt_a_x(A,lda,X,ldx,n)
+
+  implicit none
+
+  integer, intent(in) :: lda, ldx, n
+  complex*16, intent(in) :: A(lda,n)
+  complex*16, intent(inout) :: X(ldx,n)
+
+  complex*16, allocatable :: A_cp(:,:), e(:), tmp(:,:), X_tmp(:,:), eigvec(:,:), diag(:,:)
+  complex*16 :: res
+  integer :: info, i,j
+
+  allocate(A_cp(n,n),e(n),tmp(n,n),X_tmp(n,n),eigvec(n,n),diag(n,n))
+    
+  A_cp(1:n,1:n) = A(1:n,1:n)
+  print*,'A'
+  do i = 1,n
+    write(*,'(100(ES12.3))') A_cp(i,:)
+  enddo
+  print*,''
+  do i = 1, n
+    call normalize_c(A_cp(:,i),n)
+  enddo
+  print*,'A'
+  do i = 1,n
+    write(*,'(100(ES12.3))') A_cp(i,:)
+  enddo
+  print*,''
+  call diag_general_complex(e,eigvec,A_cp,n,n,info)
+  call qr_decomposition_c(eigvec,size(eigvec,1),n,n)
+  !print*,'e',e
+  !do i = 1,n
+  !  write(*,'(100(ES12.3))') eigvec(i,:)
+  !enddo
+  !print*,''
+
+  diag = (0d0,0d0)
+  do i = 1, n
+    if (cdabs(e(i)) > 1d-12) then
+      diag(i,i) = e(i)
+    endif
+  enddo
+
+  call zgemm('N','N',n,n,n, (1d0, 0d0), eigvec, n, diag, n, (0d0,0d0), tmp, n)
+  call zgemm('N','T',n,n,n, (1d0, 0d0), tmp, n, eigvec, n, (0d0,0d0), X_tmp, n)
+  print*,'bt'
+  do i = 1, n
+    write(*,'(100(ES12.3))') X_tmp(i,:) 
+  enddo
+  print*,''
+
+ do i = 1, n
+    if (cdabs(e(i)) > 1d-12) then
+      diag(i,i) = (1d0,0d0) / cdsqrt(e(i))
+    endif
+  enddo
+
+  call zgemm('N','N',n,n,n, (1d0, 0d0), eigvec, n, diag, n, (0d0,0d0), tmp, n)
+  call zgemm('N','T',n,n,n, (1d0, 0d0), tmp, n, eigvec, n, (0d0,0d0), X_tmp, n)
+  X(1:n,1:n) = X_tmp(1:n,1:n)
+
+  call zgemm('T','N',n,n,n, (1d0, 0d0), X, ldx, A, lda, (0d0,0d0), tmp, n)
+  call zgemm('N','N',n,n,n, (1d0, 0d0), tmp, n, X, ldx, (0d0,0d0), X_tmp, n)
+!
+!  print*,'error'
+  do i = 1, n
+    X_tmp(i,i) = X_tmp(i,i) - (1d0,0d0)
+!    write(*,'(100(ES12.3))') X_tmp(i,:) 
+  enddo
+
+  print*,'check', maxval(cdabs(X_tmp))
+
+ double precision, allocatable :: dA(:,:), dX(:,:)
+ allocate(dA(n,n), dX(n,n))
+ do j = 1, n
+   do i = 1, n
+     dA(i,j) = dble(A(i,j))
+   enddo
+   da(j,j) = da(j,j) + 1d0
+ enddo
+ do i = 1, n
+   write(*,'(100(ES12.3))') da(i,:)
+ enddo
+ dX = 0d0
+ call dnormalize_xt_a_x(dA,dX,n)
+
+ deallocate(tmp,x_tmp,diag,e,eigvec)
+
+end
+
+subroutine dnormalize_xt_a_x(A, X, n)
+  implicit none
+
+  integer, intent(in) :: n
+  double precision, intent(in) :: A(n, n)
+  double precision, intent(inout) :: X(n, n)
+
+  double precision, allocatable :: A_cp(:,:), e(:), tmp(:,:), X_tmp(:,:), eigvec(:,:), diag(:,:)
+  double precision :: res
+  integer :: i
+
+  allocate(A_cp(n, n), e(n), tmp(n, n), X_tmp(n, n), eigvec(n, n), diag(n, n))
+
+  A_cp(1:n, 1:n) = A(1:n, 1:n)
+
+  print*,1
+  do i = 1, n
+    write(*, '(100(ES12.3))') A_cp(i, :)
+  enddo
+  print*, ''
+
+  call lapack_diag(e, eigvec, A_cp, n, n)
+
+  diag = 0d0
+  do i = 1, n
+      if (dabs(e(i)) > 1d-12) then
+        diag(i, i) = e(i)
+      endif
+  enddo
+
+  call dgemm('N', 'N', n, n, n, 1d0, eigvec, n, diag, n, 0d0, tmp, n)
+  call dgemm('N', 'T', n, n, n, 1d0, tmp, n, eigvec, n, 0d0, X_tmp, n)
+
+  print*,2
+  do i = 1, n
+    write(*, '(100(ES12.3))') X_tmp(i, :)
+  enddo
+  print*, ''
+
+  write(*, '(A,100(ES12.3))') 'e',e(:)
+  do i = 1, n
+    if (e(i) > 1d-12) then
+      diag(i,i) = 1d0 / dsqrt(e(i))
+    endif
+  enddo
+
+  call dgemm('N','N',n,n,n, 1d0, eigvec, n, diag, n, 0d0, tmp, n)
+  call dgemm('N','T',n,n,n, 1d0, tmp, n, eigvec, n, 0d0, X_tmp, n)
+  X(1:n,1:n) = X_tmp(1:n,1:n)
+
+  call dgemm('T','N',n,n,n, 1d0, X, n, A, n, 0d0, tmp, n)
+  call dgemm('N','N',n,n,n, 1d0, tmp, n, X, n, 0d0, X_tmp, n)
+
+  print*,'error'
+  do i = 1, n
+    X_tmp(i,i) = X_tmp(i,i) - 1d0
+    write(*,'(100(ES12.3))') X_tmp(i,:)
+  enddo
+
+  print*,'check', maxval(dabs(X_tmp))
+
 
 end
 
@@ -261,7 +421,7 @@ subroutine diag_general_complex(eigvalues,eigvectors,H,nmax,n,info)
 
   if (info < 0) then
     print*,' the ', abs(info), '-th argument had an illegal value.'
-    print*,H
+    !print*,H
   else if (info > 0) then
     print*, 'the QR algorithm failed to compute all the eigenvalues.'
   endif
@@ -292,6 +452,16 @@ subroutine lapack_zggev(A,B,nmax,n,eigvalues,l_eigvectors,r_eigvectors,info)
   double precision, allocatable :: rwork(:)
   integer :: lwork,i,j
   integer, allocatable :: iorder(:)
+
+  !print*,'a'
+  !do i = 1, n
+  !    write(*,'(100(ES12.3))') dble(a(i,:))
+  !enddo
+  !print*,'b'
+  !do i = 1, n
+  !    write(*,'(100(ES12.3))') dble(b(i,:))
+  !enddo
+  !print*,''
     
   lwork = -1
   allocate(alpha(n), beta(n), e(n), vl(nmax,n), vr(nmax,n), work(1), rwork(max(1,8*n)), iorder(n), tmp(n))

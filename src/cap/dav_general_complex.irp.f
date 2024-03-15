@@ -214,9 +214,6 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   enddo
   ! Normalize all states 
   complex*16 :: norm
-  do k=1,N_st_diag
-    call normalize_complex(u_in(1,k),sze)
-  enddo
 
   ! Copy from the guess input "u_in" to the working vectors "U"
   U=dcmplx(1d300,1d300)
@@ -241,14 +238,14 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       ! -----------------------------------
 
       ! Gram-Schmidt to orthogonalize all new guess with the previous vectors 
-      call ortho_qr_complex(U,size(U,1),sze,shift2)
-      call ortho_qr_complex(U,size(U,1),sze,shift2)
+      call qr_decomposition_c(U,size(U,1),sze,shift2)
+      !call ortho_qr_complex(U,size(U,1),sze,shift2)
 
       ! Change the sign of the guess vectors to match with the ones of the previous 
       ! iterations
       if (iter > 1) then
         do j = 1, shift
-          if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < -1d-30) then
+          if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
             do i = 1, sze
               U(i,j) = - U(i,j)
             enddo
@@ -274,8 +271,10 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       ! Compute h_kl = <u_k | W_l> = <u_k| H |u_l>
       ! -------------------------------------------
 
-      !print*, 'U* W', shift2
-      call zgemm('C','N', shift2, shift2, sze,                       &
+      !call zgemm('C','N', shift2, shift2, sze,                       &
+      !    (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
+      !    (0.d0,0d0), h, size(h,1))
+      call zgemm('T','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
           (0.d0,0d0), h, size(h,1))
 
@@ -284,6 +283,9 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
 
       h_cp = h
       call diag_general_complex(lambda,y,h_cp,size(h,1),shift2,info)
+      !call ortho_qr_complex(y,size(y,1),shift2,shift2)
+      call qr_decomposition_c(y,size(y,1),shift2,shift2)
+      print*,lambda(1:N_st)
 
       ! Compute Energy for each eigenvector
       ! -----------------------------------
@@ -292,13 +294,17 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
           (1.d0,0d0), h, size(h,1), y, size(y,1),                          &
           (0d0,0.d0), tmp, size(tmp,1))
 
-      call zgemm('C','N',shift2,shift2,shift2,                       &
+      !call zgemm('C','N',shift2,shift2,shift2,                       &
+      !    (1.d0,0d0), y, size(y,1), tmp, size(tmp,1),                  &
+      !    (0.d0,0d0), h, size(h,1))
+      call zgemm('T','N',shift2,shift2,shift2,                       &
           (1.d0,0d0), y, size(y,1), tmp, size(tmp,1),                  &
           (0.d0,0d0), h, size(h,1))
 
       do k=1,shift2
         lambda(k) = h(k,k)
       enddo
+      print*,lambda(1:N_st)
 
       ! Express eigenvectors of h in the determinant basis
       ! --------------------------------------------------
@@ -333,8 +339,8 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
         !don't print 
         continue
       else
-        !write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,ES12.3,1X,ES12.3,1X))') iter-1, to_print(1:2,1:N_st)
-        write(*,'(1X,I3,1X,100(1X,F16.10,1X,ES12.3,1X))') iter-1, dble(to_print(1:2,1:N_st))
+        write(*,'(1X,I3,1X,100(1X,F16.10,1X,F16.10,1X,ES12.3,1X,ES12.3,1X))') iter-1, to_print(1:2,1:N_st)
+        !write(*,'(1X,I3,1X,100(1X,F16.10,1X,ES12.3,1X))') iter-1, dble(to_print(1:2,1:N_st))
       endif
 
       ! Check convergence
@@ -388,11 +394,11 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
       enddo
     enddo
 
-    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    !call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    !call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
 
     do j = 1, N_st_diag
-      if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < -1d-30) then
+      if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
         do i = 1, sze
           u_in(i,j) = - U(i,j)
         enddo
@@ -415,12 +421,6 @@ subroutine davidson_general_complex(u_in,H_jj,energies,dim_in,sze,N_st,N_st_diag
   write(6,'(A)') ''
 
   call write_time(6)
-  !print*,'Energies:'
-  !call ortho_qr_complex(u_in,size(u_in,1),sze,N_st_diag)
-  !call check_energy(h_mat,u_in,N_st,sze)
-  !print*,'c-Energies:'
-  !call modified_gram_schmidt_c(u_in,N_st_diag,sze)
-  !call check_c_energy(h_mat,u_in,N_st,sze)
   write(6,'(A)') ''
 
     deallocate(W)

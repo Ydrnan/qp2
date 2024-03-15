@@ -213,9 +213,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   write_buffer = ' Iter'
   do i=1,N_st
     if (i==1) then
-    write_buffer = trim(write_buffer)//'       Energy                           S^2                 Residual             '
+    write_buffer = trim(write_buffer)//'       Energy                           S^2                Residual             '
     else
-    write_buffer = trim(write_buffer)//'      Energy                           S^2                 Residual             '
+    write_buffer = trim(write_buffer)//'       Energy                           S^2                Residual             '
     endif
   enddo
   write(6,'(A)') write_buffer(1:6+41*N_st*2)
@@ -289,9 +289,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     u_in(k,k) = u_in(k,k) + (10.d0,0d0)
   enddo
-  do k=1,N_st_diag
-    call normalize_complex(u_in(1,k),sze)
-  enddo
   
   do k=1,N_st_diag
     do i=1,sze
@@ -302,41 +299,41 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   ! Orthogonalization
   !----------------------------------
 
-  ! Sign of each vector
-  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
-  do j = 1, N_st_diag
-    val = 0d0
-    do i = 1, sze
-      if (dabs(dble(U(i,j))) > dabs(val)) then
-        val = dble(U(i,j))
-        max_U(j) = val
-        pos_U(j) = i
+  if (do_qr_dav) then
+    ! Sign of each vector
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
+    do j = 1, N_st_diag
+      val = 0d0
+      do i = 1, sze
+        if (dabs(dble(U(i,j))) > dabs(val)) then
+          val = dble(U(i,j))
+          max_U(j) = val
+          pos_U(j) = i
+        endif
+      enddo
+    enddo
+    !$OMP END PARALLEL DO
+
+    ! Orthogonalization of the guess vectors
+    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    !call qr_decomposition_c(U,size(U,1),sze,N_st_diag)
+
+    ! Change the sign of the guess vectors to match with the ones of the guess
+    ! vectors
+    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
+    do j = 1, N_st_diag
+      if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
+        do i = 1, sze
+          U(i,j) = - U(i,j)
+        enddo
       endif
     enddo
-  enddo
-  !$OMP END PARALLEL DO
-
-  ! Orthogonalization of the guess vectors
-  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-  call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-
-  ! Change the sign of the guess vectors to match with the ones of the guess
-  ! vectors
-  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
-  do j = 1, N_st_diag
-    if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
-      do i = 1, sze
-        U(i,j) = - U(i,j)
-      enddo
-    endif
-  enddo
-  !$OMP END PARALLEL DO
+    !$OMP END PARALLEL DO
+  endif
   !----------------------------------
 
   do while (.not.converged)
     itertot = itertot+1
-    print*,'itertot',itertot
-    print*,'itermax',itermax
     if (itertot == 8) then
       exit
     endif
@@ -348,37 +345,39 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       shift  = N_st_diag*(iter-1)
       shift2 = N_st_diag*iter
 
-        !! Orthogonalization of the guess vectors
-        !call ortho_qr_complex(U,size(U,1),sze,shift2)
-        !call ortho_qr_complex(U,size(U,1),sze,shift2)
+        if (do_qr_dav) then
+          ! Orthogonalization of the guess vectors
+          call ortho_qr_complex(U,size(U,1),sze,shift2)
+          !call qr_decomposition_c(U,size(U,1),sze,shift2)
 
-        !! Change the sign of the guess vectors to match with the ones of the previous 
-        !! iterations
-        !if (iter > 1) then
-        !  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
-        !  do j = 1, shift
-        !    if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
-        !      do i = 1, sze
-        !        U(i,j) = - U(i,j)
-        !      enddo
-        !    endif
-        !  enddo
-        !  !$OMP END PARALLEL DO
-        !endif
+          ! Change the sign of the guess vectors to match with the ones of the previous 
+          ! iterations
+          if (iter > 1) then
+            !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
+            do j = 1, shift
+              if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
+                do i = 1, sze
+                  U(i,j) = - U(i,j)
+                enddo
+              endif
+            enddo
+            !$OMP END PARALLEL DO
+          endif
 
-        !! Sign of each vector
-        !!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
-        !do j = shift+1, shift2
-        !  val = 0d0
-        !  do i = 1, sze
-        !    if (dabs(dble(U(i,j))) > dabs(val)) then
-        !      val = dble(U(i,j))
-        !      max_U(j) = val
-        !      pos_U(j) = i
-        !    endif
-        !  enddo
-        !enddo
-        !!$OMP END PARALLEL DO
+          ! Sign of each vector
+          !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
+          do j = shift+1, shift2
+            val = 0d0
+            do i = 1, sze
+              if (dabs(dble(U(i,j))) > dabs(val)) then
+                val = dble(U(i,j))
+                max_U(j) = val
+                pos_U(j) = i
+              endif
+            enddo
+          enddo
+          !$OMP END PARALLEL DO
+        endif
 
         call H_S2_u_0_nstates_openmp_complex(W(1,shift+1),S_d,U(1,shift+1),N_st_diag,sze)
         !SU(:,shift+1:shift2) = S_d(:,:)
@@ -394,6 +393,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
            s_(i,j) = 0.d0
            do k=1,sze
              s_(i,j) = s_(i,j) + DCONJG(U(k,i)) * dcmplx(dble(S(k,j)),dble(aimag(S(k,j))))
+             !s_(i,j) = s_(i,j) + U(k,i) * dcmplx(dble(S(k,j)),dble(aimag(S(k,j))))
            enddo
           enddo
         enddo
@@ -405,17 +405,41 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
           (0.d0,0d0), h, size(h,1))
+      !call zgemm('T','N', shift2, shift2, sze,                       &
+      !    (1.d0,0d0), U, size(U,1), W, size(W,1),                          &
+      !    (0.d0,0d0), h, size(h,1))
 
       Call zgemm('C','N', shift2, shift2, sze,                       &
           (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
           (0.d0,0d0), s_tmp, size(s_tmp,1))
+      !Call zgemm('T','N', shift2, shift2, sze,                       &
+      !    (1.d0,0d0), U, size(U,1), U, size(U,1),                          &
+      !    (0.d0,0d0), s_tmp, size(s_tmp,1))
 
       ! Diagonalize h_p
       ! ---------------
+       !do i = 1, shift2
+       !  do j = i, shift2
+       !    call inner_prod_c(U(1,i),U(1,j),sze,res)
+       !    print*,i,j,res
+       !  enddo
+       !enddo
 
+       !h_cp = h
+       !call  diag_general_complex(lambda,y,h_cp,size(y,1),shift2,info)
+       !print*, lambda(1:N_st) + dcmplx(nuclear_repulsion,0d0)
+       !print*,maxval(dabs(dble(h))),maxval(cdabs(h))
+       !print*,''
        h_cp = h
        s_cp = s_tmp
        call lapack_zggev(h_cp,s_tmp,size(h,1),shift2,lambda,y_left,y,info)
+       !write(*,'(100(ES12.3))') y(1,1:shift2)
+       !call qr_decomposition_c(y,size(y,1),shift2,shift2)
+       !do i = 1, shift2
+       !  !write(*,'(100(ES12.3))') dble(h(i,1:shift2))
+       !  call normalize_c(y(1,i),shift2)
+       !enddo
+       !write(*,'(100(ES12.3))') y(1,1:shift2)
 
        ! Normalization to have Y^* s_tmp Y = Id
        ! => y = 1/sqrt(y^* s_tmp y)
@@ -449,6 +473,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('C','N',shift2,shift2,shift2,                       &
           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
           (0.d0,0d0), h, size(h,1))
+      !call zgemm('T','N',shift2,shift2,shift2,                       &
+      !    (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
+      !    (0.d0,0d0), h, size(h,1))
 
       do k=1,shift2
         lambda(k) = h(k,k)
@@ -464,6 +491,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       call zgemm('C','N',shift2,shift2,shift2,                       &
           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
           (0.d0,0d0), s_, size(s_,1))
+      !call zgemm('T','N',shift2,shift2,shift2,                       &
+      !    (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
+      !    (0.d0,0d0), s_, size(s_,1))
 
       do k=1,shift2
         s2(k) = s_(k,k)
@@ -557,7 +587,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
                 / dcmplx(1d-2, dimag(H_jj(i) - lambda (k)))
            endif
         enddo
-
         if (k <= N_st) then
           call inner_product_complex(U(1,shift2+k),U(1,shift2+k),sze,residual_norm(k))
           to_print(1,k) = dble(lambda(k)) + nuclear_repulsion
@@ -585,7 +614,6 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           converged = dabs(maxval(dble(residual_norm(1:N_st)))) < threshold_davidson
         endif
       endif
-      print*,'Converged',converged
 
       do k=1,N_st
         if (dble(residual_norm(k)) > 1.d8) then
@@ -641,41 +669,42 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
     enddo
     !$OMP END PARALLEL DO
 
-    ! Sign of each vector
-    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
-    do j = 1, N_st_diag 
-      val = 0d0
-      do i = 1, sze
-        if (dabs(dble(U(i,j))) > dabs(val)) then
-          val = dble(U(i,j))
-          max_U(j) = val
-          pos_U(j) = i
-        endif
-      enddo
-    enddo
-    !$OMP END PARALLEL DO
-
     call nullify_small_elements_complex(sze,N_st_diag,U,size(U,1),threshold_davidson_pt2)
 
-    ! Orthogonalization seems to lead to problem when looking at the energy of some states
-    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
-    call ortho_qr_complex(U,size(U,1),sze,N_st_diag)
+    !if (do_qr_dav) then
+    !  ! Sign of each vector
+    !  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j,val)
+    !  do j = 1, N_st_diag 
+    !    val = 0d0
+    !    do i = 1, sze
+    !      if (dabs(dble(U(i,j))) > dabs(val)) then
+    !        val = dble(U(i,j))
+    !        max_U(j) = val
+    !        pos_U(j) = i
+    !      endif
+    !    enddo
+    !  enddo
+    !  !$OMP END PARALLEL DO
 
-    ! Change the sign of the guess vectors to match with the ones before the QR
-    !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
-    do j = 1, N_st_diag
-      !print*,j,dble(U(pos_U(j),j)),sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j)))
-      if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
-        do i = 1, sze
-          u_in(i,j) = - U(i,j)
-        enddo
-      else
-        do i = 1, sze
-          u_in(i,j) = U(i,j)
-        enddo
-      endif
-    enddo
-    !$OMP END PARALLEL DO
+    !  ! !!! Orthogonalization seems to lead to problem when looking at the energy of some states !!!
+    !  !call ortho_qr_complex(U,size(U,1),sze,N_st)
+
+    !  ! Change the sign of the guess vectors to match with the ones before the QR
+    !  !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
+    !  do j = 1, N_st_diag
+    !    !print*,j,dble(U(pos_U(j),j)),sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j)))
+    !    if (sign(1d0,max_U(j)) * sign(1d0,dble(U(pos_U(j),j))) < 0d0) then
+    !      do i = 1, sze
+    !        u_in(i,j) = - U(i,j)
+    !      enddo
+    !    else
+    !      do i = 1, sze
+    !        u_in(i,j) = U(i,j)
+    !      enddo
+    !    endif
+    !  enddo
+    !  !$OMP END PARALLEL DO
+    !endif
 
     !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
     do k=1,N_st_diag

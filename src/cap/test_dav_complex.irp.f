@@ -29,11 +29,11 @@ subroutine dav_complex
 
  u_in = 0.d0
  do i = 1, N_st
-  u_in(1,i) = (1.d0,0d0)
+  u_in(:,i) = dcmplx(psi_coef(:,i),0d0)
  enddo
- do i = 1, sze
-  H_jj(i) = H_matrix_all_dets_complex(i,i)
- enddo
+ !do i = 1, sze
+ ! H_jj(i) = H_matrix_all_dets_complex(i,i)
+ !enddo
  !call davidson_general_complex(u_in,H_jj,energies,sze,sze,N_st,N_st_diag_in,converged,H_matrix_all_dets_complex)
  !u_in2 = dble(u_in)
  !call davidson_diag_hs2(psi_det,u_in2,s2_out2,sze,energies2,sze,N_st,N_st_diag_in,N_int,0,converged)
@@ -46,12 +46,12 @@ subroutine dav_complex
  !!do i = 1, sze
  !!   write(*,'(100(F12.6))') H_matrix_all_dets_complex(i,:)
  !!enddo
- !call diag_general_complex(eigvalues,eigvectors,H_matrix_all_dets_complex,sze,sze,info)
- !eigvalues += dcmplx(nuclear_repulsion,0d0)
- !print*,'Exact energies:'
- !do i = 1, min(10,N_det)
- !   write(*,'(I6,100(F18.10))') i, eigvalues(i)
- !enddo
+ call diag_general_complex(eigvalues,eigvectors,H_matrix_all_dets_complex,sze,sze,info)
+ eigvalues += dcmplx(nuclear_repulsion,0d0)
+ print*,'Exact energies:'
+ do i = 1, min(10,N_det)
+    write(*,'(I6,100(F18.10))') i, eigvalues(i)
+ enddo
  !u_in = 0.d0
  !u_in(1:sze,1:N_st) = eigvectors(1:sze,1:N_st)
  !call  diagonalize_ci_cap(u_in, energies,corr)
@@ -84,42 +84,7 @@ subroutine dav_complex
  !!   write(*,'(I6,100(F18.10))') i, eigvalues(i)
  !!enddo
 
-!! do i = 1, sze
-!!   call print_det(psi_det(1,1,i),N_int)
-!!   write(*,'(100(F12.6))') eigvectors(i,1) / eigvectors(1,1)
-!!enddo
-!! call modified_gram_schmidt_c(eigvectors,sze,sze)
-!! do i = 1, sze
-!!   call print_det(psi_det(1,1,i),N_int)
-!!   write(*,'(100(F12.6))') eigvectors(i,1) / eigvectors(1,1)
-!!enddo
-!!
- !complex*16, allocatable :: rdm(:,:,:)
- !allocate(rdm(mo_num,mo_num,sze))
- !call modified_gram_schmidt_c(eigvectors,sze,sze)
- !call mo_one_rdm_cap(eigvectors, sze, sze, rdm)
-
- !complex*16, allocatable :: tmpc(:,:), w(:,:)
- ! complex*16 :: trace
- !allocate(tmpc(mo_num,mo_num),w(mo_num,mo_num))
- !w = dcmplx(0d0,mo_one_e_integrals_cap)
- !do j = 1, 8
- !  tmpc = matmul(rdm(:,:,j),w)
- !  !do i = 1, mo_num
- !  !  write(*,'(100(F12.6))') tmpc(i,:)
- !  !enddo 
- !  trace = (0d0,0d0)
- !  do i = 1, mo_num
- !    trace += tmpc(i,i)
- !  enddo
- !  write(*,'(I8,F16.10,F16.10)') j, eta_cap * trace * (0.5d0,0d0)
- !enddo
-
- !print*,'c-Energies:'
- !call modified_gram_schmidt_c(eigvectors,sze,sze)
- !call check_c_energy(h_cp,eigvectors,sze,sze)
- 
- call diagonalize_ci()
+ !call diagonalize_ci()
 
  u_in = (0d0,0d0)
  do i = 1, N_st
@@ -137,7 +102,7 @@ subroutine dav_complex
 
  !u_in2 = 0d0
  !do i = 1, N_st
- !  u_in2(1,i) = 1.d0
+ !  u_in2(:,i) = psi_coef(:,i)
  !enddo
  !call davidson_diag_hs2(psi_det,u_in2,s2_out2,sze,energies2,sze,N_st,N_st_diag_in,N_int,0,converged)
  !call davidson_diag_hs2(psi_det,u_in2,s2_out2,sze,energies2,sze,N_st,N_st_diag_in,N_int,0,converged)
