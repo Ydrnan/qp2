@@ -126,8 +126,12 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
        if (state_following .and. only_expected_s2) then
 
          integer :: state(N_states), idx,l
-         double precision :: overlp(N_det), omax
-         logical :: ok(N_det), used
+         double precision :: omax
+         double precision, allocatable :: overlp(:)
+         logical :: used
+         logical, allocatable :: ok(:)
+
+         allocate(overlp(N_det),ok(N_det))
 
          i_state = 0
          state = 0
@@ -165,6 +169,8 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
            state(l) = idx
            i_state +=1
          enddo
+
+         deallocate(overlp,ok)
 
          do i = 1, i_state
            index_good_state_array(i) = state(i)
