@@ -32,9 +32,10 @@ subroutine ref_idx_complex(l_det,l_coef,Ndet,N_st,Nint)
     write(*,'(10(I10))') iorder(1:N)
     orb = 0
     do i = 1, N
-      call get_excitation(l_det(1,1,iorder(i)),hf_bitmask,exc,degree,phase,Nint)
+      call get_excitation_degree(l_det(1,1,iorder(i)),hf_bitmask,degree,Nint)
       orb(:,i) = 0
-      if (degree < 0) cycle
+      if (degree == 0 .or. degree > 2) cycle
+      call get_excitation(l_det(1,1,iorder(i)),hf_bitmask,exc,degree,phase,Nint)
       call decode_exc(exc,degree,h1,p1,h2,p2,s1,s2)
       orb(1,i) = p1
       orb(2,i) = h1

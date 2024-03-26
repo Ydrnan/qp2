@@ -96,24 +96,83 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
      print *,  'Diagonalization of H using Lapack'
      allocate (eigenvectors(size(H_matrix_all_dets,1),N_det))
      allocate (eigenvalues(N_det))
+
      if (s2_eig) then
+
        complex*16, parameter :: alpha = dcmplx(0.1d0,0d0)
        allocate (H_prime(N_det,N_det) )
+
        H_prime(1:N_det,1:N_det) = H_matrix_all_dets_complex(1:N_det,1:N_det) +  &
          alpha * dcmplx(S2_matrix_all_dets(1:N_det,1:N_det),0d0)
+
        do j=1,N_det
          H_prime(j,j) = H_prime(j,j) - alpha * dcmplx(expected_s2,0d0)
        enddo
+
        call diag_general_complex(eigenvalues,eigenvectors,H_prime,size(H_prime,1),N_det,info)
+       call qr_decomposition_c(eigenvectors,size(eigenvectors,1),N_det,N_det)
        call nullify_small_elements_complex(N_det,N_det,eigenvectors,size(eigenvectors,1),1.d-12)
+
        ci_electronic_energy_cap(:) = dcmplx(0.d0,0d0)
        i_state = 0
+
        allocate (s2_eigvalues(N_det))
        allocate(index_good_state_array(N_det),good_state_array(N_det))
+
        good_state_array = .False.
        call u_0_S2_u_0_complex(s2_eigvalues,eigenvectors,N_det,psi_det,N_int,&
          N_det,size(eigenvectors,1))
-       if (only_expected_s2) then
+
+       if (state_following .and. only_expected_s2) then
+
+         integer :: state(N_states), idx,l
+         double precision :: overlp(N_det), omax
+         logical :: ok(N_det), used
+
+         i_state = 0
+         state = 0
+         do l = 1, N_states
+
+           ! Overlap wrt each state
+           overlp = 0d0
+           do k = 1, N_det
+             do i = 1, N_det
+               overlp(k) = overlp(k) + psi_coef(i,l) * dble(eigenvectors(i,k))
+             enddo
+           enddo
+
+           ! Idx of the state with the maximum overlap not already "used"
+           omax = 0d0
+           idx = 0
+           do k = 1, N_det
+
+             ! Already used ?
+             used = .False.
+             do i = 1, N_states
+               if (state(i) == k) then
+                 used = .True.
+               endif
+             enddo
+
+             ! Maximum overlap
+             if (dabs(overlp(k)) > omax .and. .not. used) then
+               if (dabs(cdabs(s2_eigvalues(k))-expected_s2) > 0.5d0) cycle
+               omax = dabs(overlp(k))
+               idx = k
+             endif
+           enddo
+
+           state(l) = idx
+           i_state +=1
+         enddo
+
+         do i = 1, i_state
+           index_good_state_array(i) = state(i)
+           good_state_array(i) = .True.
+         enddo
+
+       else if (only_expected_s2) then
+
          do j=1,N_det
            ! Select at least n_states states with S^2 values closed to "expected_s2"
            if(dabs(dble(s2_eigvalues(j))-expected_s2).le.0.5d0)then
@@ -121,17 +180,23 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
              index_good_state_array(i_state) = j
              good_state_array(j) = .True.
            endif
+
            if(i_state.eq.N_states) then
              exit
            endif
          enddo
+
        else
+
          do j=1,N_det
            index_good_state_array(j) = j
            good_state_array(j) = .True.
          enddo
+
        endif
+
        if(i_state .ne.0)then
+
          ! Fill the first "i_state" states that have a correct S^2 value
          do j = 1, i_state
            do i=1,N_det
@@ -140,6 +205,7 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
            ci_electronic_energy_cap(j) = eigenvalues(index_good_state_array(j))
            ci_s2_cap(j) = s2_eigvalues(index_good_state_array(j))
          enddo
+
          i_other_state = 0
          do j = 1, N_det
            if(good_state_array(j))cycle
@@ -172,17 +238,24 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
            ci_s2_cap(j) = s2_eigvalues(j)
          enddo
        endif
+
        deallocate(index_good_state_array,good_state_array)
        deallocate(s2_eigvalues)
+
      else
+
        allocate(h_tmp(N_det,N_det))
+
        h_tmp = H_matrix_all_dets_complex
        call diag_general_complex(eigenvalues,eigenvectors,                    &
            h_tmp,size(h_tmp,1),N_det,info)
+
        deallocate(h_tmp)
+
        ci_electronic_energy_cap(:) = dcmplx(0.d0,0d0)
        call u_0_S2_u_0_complex(ci_s2_cap,eigenvectors,N_det,psi_det,N_int,       &
            min(N_det,N_states_diag),size(eigenvectors,1))
+
        ! Select the "N_states_diag" states of lowest energy
        do j=1,min(N_det,N_states_diag)
          do i=1,N_det
@@ -191,18 +264,23 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
          ci_electronic_energy_cap(j) = eigenvalues(j)
          write(*,'(I8,2(F22.10))') j, ci_electronic_energy_cap(j) + dcmplx(nuclear_repulsion,0d0)
        enddo
+
      endif
 
+     print*,'1',ci_electronic_energy_cap(1:N_states)
      do k=1,N_states_diag
        ci_electronic_energy_cap(k) = dcmplx(0.d0,0d0)
        do j=1,N_det
          do i=1,N_det
            ci_electronic_energy_cap(k) +=                                &
-               DCONJG(ci_eigenvectors_cap(i,k)) * ci_eigenvectors_cap(j,k) *         &
+               !DCONJG(ci_eigenvectors_cap(i,k)) * ci_eigenvectors_cap(j,k) *         &
+               ci_eigenvectors_cap(i,k) * ci_eigenvectors_cap(j,k) *         &
                H_matrix_all_dets_complex(i,j)
          enddo
        enddo
      enddo
+     print*,'2',ci_electronic_energy_cap(1:N_states)
+
      deallocate(eigenvectors,eigenvalues)
    endif
 
@@ -219,9 +297,10 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
 
    eigvec = ci_eigenvectors_cap(:,1:N_states)
 
+   !call overlap_cap(eigvec)
    call qr_decomposition_c(eigvec,size(eigvec,1),N_det,N_states)
 
-   !call overlap_cap(eigvec)
+   call overlap_cap(eigvec)
 
    complex*16, allocatable :: W(:,:), h(:,:), S_d(:,:), prefactor(:), residue(:,:), H_jj(:)
    double precision, external     :: diag_H_mat_elem

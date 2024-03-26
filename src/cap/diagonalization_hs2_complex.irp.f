@@ -546,6 +546,81 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         enddo
       endif
 
+      !-------------------------------------------
+      if (state_following) then
+
+        integer ::  state(N_st), idx
+        double precision :: omax
+        logical :: used
+        logical, allocatable :: ok(:)
+        double precision, allocatable :: overlp(:,:)
+
+        allocate(overlp(shift2,N_st),ok(shift2))
+
+        overlp = 0d0
+        do j = 1, shift2-1, N_st_diag
+
+          ! Computes some states from the guess vectors
+          ! Psi(:,j:j+N_st_diag) = U y(:,j:j+N_st_diag) and put them
+          ! in U(1,shift2+1:shift2+1+N_st_diag) as temporary array
+          call zgemm('N','N', sze, N_st_diag, shift2,                    &
+          (1.d0,0d0), U, size(U,1), y(1,j), size(y,1), (0.d0,0d0), U(1,shift2+1), size(U,1))
+          do k = 1, N_st_diag
+            call normalize_c(U(:,shift2+k),sze)
+          enddo
+
+          ! Overlap
+          do l = 1, N_st
+            do k = 1, N_st_diag
+              do i = 1, sze
+                overlp(k+j-1,l) += dble(U(i,l)) * dble(U(i,shift2+k))
+              enddo
+            enddo
+          enddo
+
+        enddo
+
+        state = 0
+        do l = 1, N_st
+
+          omax = 0d0
+          idx = 0
+          do k = 1, shift2
+
+            ! Already used ?
+            used = .False.
+            do i = 1, N_st
+              if (state(i) == k) then
+                used = .True.
+              endif
+            enddo
+
+            ! Maximum overlap
+            if (dabs(overlp(k,l)) > omax .and. .not. used .and. state_ok(k)) then
+              omax = dabs(overlp(k,l))
+              idx = k
+            endif
+          enddo
+
+          state(l) = idx
+        enddo
+
+        ! tmp array before setting state_ok
+        ok = .False.
+        do l = 1, N_st
+          ok(state(l)) = .True.
+        enddo
+
+        do k = 1, shift2
+          if (.not. ok(k)) then
+            state_ok(k) = .False.
+          endif
+        enddo
+
+        deallocate(overlp,ok)
+      endif
+      !-------------------------------------------
+
       do k=1,shift2
         if (.not. state_ok(k)) then
           do l=k+1,shift2
