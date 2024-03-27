@@ -573,7 +573,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           do l = 1, N_st
             do k = 1, N_st_diag
               do i = 1, sze
-                overlp(k+j-1,l) += dble(U(i,l)) * dble(U(i,shift2+k))
+                overlp(k+j-1,l) += dble(u_in(i,l)) * dble(U(i,shift2+k))
               enddo
             enddo
           enddo
