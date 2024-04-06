@@ -273,7 +273,7 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
 
      endif
 
-     print*,'1',ci_electronic_energy_cap(1:N_states)
+     !print*,'1',ci_electronic_energy_cap(1:N_states)
      do k=1,N_states_diag
        ci_electronic_energy_cap(k) = dcmplx(0.d0,0d0)
        do j=1,N_det
@@ -285,7 +285,7 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
          enddo
        enddo
      enddo
-     print*,'2',ci_electronic_energy_cap(1:N_states)
+     !print*,'2',ci_electronic_energy_cap(1:N_states)
 
      deallocate(eigenvectors,eigenvalues)
    endif
@@ -303,8 +303,12 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
 
    eigvec = ci_eigenvectors_cap(:,1:N_states)
 
+   print*,'max imag', maxval(dimag(eigvec))
    !call overlap_cap(eigvec)
    call qr_decomposition_c(eigvec,size(eigvec,1),N_det,N_states)
+
+   print*,'max imag', maxval(dimag(eigvec))
+   print*,'sum',sum(dble(eigvec)), sum(dimag(eigvec))
 
    call overlap_cap(eigvec)
 
@@ -421,6 +425,13 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
    ! We also need to know the dominant determinants for the states since they are
    ! swapping because of the CAP...
    call ref_idx_complex(psi_det,eigvec,N_det,N_states,N_int) 
+
+   psi_energy_cap = ci_electronic_energy_cap
+   touch psi_energy_cap
+   psi_cap_coef = eigvec
+   touch psi_cap_coef
+   !call selection(eigvec)
+   !call full_pt2()
 
    deallocate(W,eigvec,eige,h,S_d,rdm_cap,tmp_w,residue)
 

@@ -14,6 +14,7 @@ subroutine run_stochastic_cipsi(Ev,PT2)
 
   double precision :: rss
   double precision, external :: memory_of_double
+  complex*16, allocatable :: tmp_cap(:,:)
   PROVIDE H_apply_buffer_allocated distributed_davidson mo_two_e_integrals_in_map
 
   threshold_generators = 1.d0
@@ -34,6 +35,7 @@ subroutine run_stochastic_cipsi(Ev,PT2)
 
   zeros = 0.d0
   pt2_data % pt2   = -huge(1.e0)
+  pt2_data % pt2_im = -huge(1.e0)
   pt2_data % rpt2  = -huge(1.e0)
   pt2_data % overlap= 0.d0
   pt2_data % variance = huge(1.e0)
@@ -43,6 +45,11 @@ subroutine run_stochastic_cipsi(Ev,PT2)
   endif
   call diagonalize_CI
   call save_wavefunction
+  if (do_cap) then
+    call cap()
+    !allocate(tmp_cap(N_det,N_states))
+    !call save_wavefunction_cap(tmp_cap)
+  endif
 
   call ezfio_has_hartree_fock_energy(has)
   if (has) then
@@ -61,6 +68,11 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     endif
     call diagonalize_CI
     call save_wavefunction
+    if (do_cap) then
+      !call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
+      call cap()
+      !deallocate(tmp_cap)
+    endif
   endif
 
   double precision :: correlation_energy_ratio
@@ -75,10 +87,12 @@ subroutine run_stochastic_cipsi(Ev,PT2)
         )
       write(*,'(A)')  '--------------------------------------------------------------------------------'
 
-
+    if (cap_pt2 .and. do_cap) then
+        call build_psi_coef_cap_sorted(psi_cap_coef)
+    endif
+    
     to_select = int(sqrt(dble(N_states))*dble(N_det)*selection_factor)
     to_select = max(N_states_diag, to_select)
-
 
     Ev(1:N_states) = psi_energy_with_nucl_rep(1:N_states)
     call pt2_dealloc(pt2_data)
@@ -93,8 +107,14 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     correlation_energy_ratio = min(1.d0,correlation_energy_ratio)
 
     call write_double(6,correlation_energy_ratio, 'Correlation ratio')
-    call print_summary(psi_energy_with_nucl_rep, &
+
+    if (do_cap .and. cap_pt2) then
+      call print_summary_cap(psi_energy_with_nucl_rep, &
        pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
+    else
+      call print_summary(psi_energy_with_nucl_rep, &
+       pt2_data, pt2_data_err, N_det,N_configuration,N_states,psi_s2)
+    endif
 
     call save_energy(psi_energy_with_nucl_rep, pt2_data % pt2)
 
@@ -102,6 +122,11 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call print_extrapolated_energy()
     call print_mol_properties()
     call write_cipsi_json(pt2_data,pt2_data_err)
+
+    if (cap_pt2 .and. do_cap) then
+        psi_coef = psi_coef_tmpsave
+        touch psi_coef
+    endif
 
     if (qp_stop()) exit
 
@@ -119,7 +144,11 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call save_wavefunction
     call save_energy(psi_energy_with_nucl_rep, zeros)
     if (do_cap) then
+      !call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
+      !deallocate(tmp_cap)
       call cap()
+      !allocate(tmp_cap(N_states,N_det))
+      !call save_wavefunction_cap(tmp_cap)
     endif
     if (qp_stop()) exit
   enddo
@@ -135,11 +164,22 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call pt2_dealloc(pt2_data_err)
     call pt2_alloc(pt2_data, N_states)
     call pt2_alloc(pt2_data_err, N_states)
+    if (cap_pt2 .and. do_cap) then
+        call build_psi_coef_cap_sorted(psi_cap_coef)
+    endif
+    !if (do_cap) then
+    !  deallocate(tmp_cap)
+    !endif
     call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0) ! Stochastic PT2
 
     call save_energy(psi_energy_with_nucl_rep, pt2_data % pt2)
-    call print_summary(psi_energy_with_nucl_rep, &
+    if (do_cap .and. cap_pt2) then
+      call print_summary_cap(psi_energy_with_nucl_rep, &
        pt2_data , pt2_data_err, N_det, N_configuration, N_states, psi_s2)
+    else
+      call print_summary(psi_energy_with_nucl_rep, &
+       pt2_data , pt2_data_err, N_det, N_configuration, N_states, psi_s2)
+    endif
     call increment_n_iter(psi_energy_with_nucl_rep, pt2_data)
     call print_extrapolated_energy()
     call print_mol_properties()

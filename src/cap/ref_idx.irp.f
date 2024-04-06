@@ -11,7 +11,7 @@ subroutine ref_idx_complex(l_det,l_coef,Ndet,N_st,Nint)
   integer :: i,s,N, degree, exc(0:2,2,2),h1,p1,h2,p2,s1,s2
   double precision :: phase
 
-  N = 6
+  N = min(6,N_det)
 
   allocate(iorder(Ndet),tmp(Ndet),orb(6,N))
 

@@ -91,7 +91,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   integer                       :: iter2, itertot
   complex*16, allocatable       :: y(:,:), h(:,:), h_p(:,:), lambda(:), s2(:), h_cp(:,:), su(:,:)
   complex*8, allocatable        :: y_s(:,:)
-  complex*16, allocatable       :: s_(:,:), s_tmp(:,:), y_left(:,:), s_cp(:,:)
+  complex*16, allocatable       :: s_(:,:), s_tmp(:,:), y_left(:,:), s_cp(:,:), prev_y(:,:)
   double precision              :: diag_h_mat_elem
   complex*16, allocatable       :: residual_norm(:)
   character*(16384)             :: write_buffer
@@ -248,6 +248,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       h(N_st_diag*itermax,N_st_diag*itermax),                        &
 !      h_p(N_st_diag*itermax,N_st_diag*itermax),                      &
       y(N_st_diag*itermax,N_st_diag*itermax),                        &
+      prev_y(N_st_diag*itermax,N_st_diag*itermax),                   &
       s_(N_st_diag*itermax,N_st_diag*itermax),                       &
       s_tmp(N_st_diag*itermax,N_st_diag*itermax),                    &
       residual_norm(N_st_diag),                                      &
@@ -266,6 +267,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
   s_tmp = (0.d0,0d0)
   pos_U = 0
   max_U = 0d0
+
+  prev_y = (0d0,0d0)
+  do i = 1, N_st_diag*itermax
+    prev_y(i,i) = (1d0,0d0)
+  enddo
 
   ASSERT (N_st > 0)
   ASSERT (N_st_diag >= N_st)
@@ -432,8 +438,19 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
        !print*,''
        h_cp = h
        s_cp = s_tmp
+       !do j = 1, shift2
+       !  do i = 1, shift2
+       !    print*,h_cp(i,j)-h_cp(j,i)
+       !! print*,dble(h_cp(1:shift2,i))
+       !  enddo
+       !enddo 
+       !print*,'s_tmp'
+       !do i = 1, shift2
+       !  print*,s_tmp(i,1:shift2)
+       !enddo
        call lapack_zggev(h_cp,s_tmp,size(h,1),shift2,lambda,y_left,y,info)
        !write(*,'(100(ES12.3))') y(1,1:shift2)
+       !print*,'l',lambda(1:shift2)
        !call qr_decomposition_c(y,size(y,1),shift2,shift2)
        !do i = 1, shift2
        !  !write(*,'(100(ES12.3))') dble(h(i,1:shift2))
@@ -453,13 +470,19 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           (1.d0,0d0), y, size(y,1), s_tmp, size(s_tmp,1),                  &
           (0.d0,0d0), s_cp, size(h,1))
 
+       ! print*,'y1',maxval(dimag(y(1:shift2,1:shift2)))
        do i = 1, shift2
          y(:,i) = y(:,i) / cdsqrt(s_cp(i,i))
+       ! print*,'y',maxval(dimag(y(1:shift2,i)))
        enddo 
+       ! print*,'y2',maxval(dimag(y(1:shift2,1:shift2)))
 
        if (info > 0) then
          ! Numerical errors propagate. We need to reduce the number of iterations
+         print*,'info:',info
          itermax = iter-1
+         shift2 = shift2 - N_st_diag
+         y = prev_y
          exit
        endif
 
@@ -596,7 +619,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
             enddo
 
             ! Maximum overlap
-            if (dabs(overlp(k,l)) > omax .and. .not. used .and. state_ok(k)) then
+            if ((dabs(overlp(k,l)) > omax) .and. (.not. used) .and. state_ok(k)) then
               omax = dabs(overlp(k,l))
               idx = k
             endif
@@ -636,6 +659,9 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         endif
       enddo
 
+      ! Swapped eigenvectors
+      prev_y = y
+
       ! Express eigenvectors of h in the determinant basis
       ! --------------------------------------------------
       call zgemm('N','N', sze, N_st_diag, shift2,                    &
@@ -655,11 +681,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       !$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,k)
       do k=1,N_st_diag
         do i=1,sze
-           if (dble(H_jj(i) - lambda (k)) >= 1d-2) then 
+           if (dabs(dble(H_jj(i) - lambda (k))) >= 1d-2) then 
              U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) ) /(H_jj(i) - lambda (k))
            else
              U(i,shift2+k) = (lambda(k) * U(i,shift2+k) - W(i,shift2+k) )      &
-                / dcmplx(1d-2, dimag(H_jj(i) - lambda (k)))
+                / dcmplx(dsign(1d-2, dble(H_jj(i) - lambda (k))), dimag(H_jj(i) - lambda (k)))
            endif
         enddo
         if (k <= N_st) then
@@ -810,7 +836,7 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
       U, overlap,                                                    &
       h, y_s, S_d,                                                   &
       y, s_, s_tmp,                                                  &
-      lambda                                                         &
+      lambda, prev_y                                                 &
       )
   FREE nthreads_davidson
 end

@@ -170,6 +170,7 @@ subroutine select_singles_and_doubles(i_generator,hole_mask,particle_mask,fock_d
 
 
   double precision, allocatable   :: mat(:,:,:)
+  complex*16, allocatable :: mat_c(:,:,:)
 
   logical :: monoAdo, monoBdo
   integer :: maskInd
@@ -320,7 +321,13 @@ subroutine select_singles_and_doubles(i_generator,hole_mask,particle_mask,fock_d
 
 
   allocate(banned(mo_num, mo_num,2), bannedOrb(mo_num, 2))
-  allocate (mat(N_states, mo_num, mo_num))
+
+  if (cap_pt2 .and. do_cap) then
+    allocate(mat_c(N_states, mo_num, mo_num))
+  else
+    allocate (mat(N_states, mo_num, mo_num))
+  endif
+
   maskInd = -1
 
   integer                        :: nb_count, maskInd_save
@@ -521,8 +528,13 @@ subroutine select_singles_and_doubles(i_generator,hole_mask,particle_mask,fock_d
             call spot_isinwf(mask, fullminilist, i_generator, fullinteresting(0), banned, fullMatch, fullinteresting)
             if(fullMatch) cycle
 
-            call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting)
-            call fill_buffer_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat, buf)
+            if (cap_pt2 .and. do_cap) then
+              call splash_pq_cap(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat_c, interesting)
+              call fill_buffer_cap_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat_c, buf)
+            else
+              call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting)
+              call fill_buffer_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat, buf)
+            endif
           end if
         enddo
         if(s1 /= s2) monoBdo = .false.
@@ -531,7 +543,12 @@ subroutine select_singles_and_doubles(i_generator,hole_mask,particle_mask,fock_d
     enddo
   enddo
   deallocate(preinteresting, prefullinteresting, interesting, fullinteresting)
-  deallocate(banned, bannedOrb,mat)
+  deallocate(banned, bannedOrb)
+  if (cap_pt2 .and. do_cap) then
+    deallocate(mat_c)
+  else
+    deallocate(mat)
+  endif 
 end subroutine
 
 BEGIN_TEMPLATE
@@ -745,8 +762,8 @@ subroutine fill_buffer_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, fock_
             tmp = -tmp
         endif
 
-        !e_pert(istate) = alpha_h_psi * alpha_h_psi / (E0(istate) - Hii)
-        e_pert(istate) = 0.5d0 * (tmp - delta_E)
+        e_pert(istate) = alpha_h_psi * alpha_h_psi / (E0(istate) - Hii)
+        !e_pert(istate) = 0.5d0 * (tmp - delta_E)
 
         if (dabs(alpha_h_psi) > 1.d-4) then
           coef(istate) = e_pert(istate) / alpha_h_psi
@@ -755,7 +772,8 @@ subroutine fill_buffer_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, fock_
         endif
       enddo
 
-      do_diag = sum(dabs(coef)) > 0.001d0 .and. N_states > 1
+      ! Not working if the energy difference between the states is large
+      do_diag = .False. !sum(dabs(coef)) > 0.001d0 .and. N_states > 1
 
       double precision :: eigvalues(N_states+1)
       double precision :: work(1+6*(N_states+1)+2*(N_states+1)**2)
