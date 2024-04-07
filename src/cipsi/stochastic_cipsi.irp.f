@@ -46,9 +46,14 @@ subroutine run_stochastic_cipsi(Ev,PT2)
   call diagonalize_CI
   call save_wavefunction
   if (do_cap) then
+    do k = 1, N_states
+        do i = 1, N_det
+            psi_cap_coef(i,k) = dcmplx(psi_coef(i,k),0d0)
+        enddo
+    enddo
     call cap()
-    !allocate(tmp_cap(N_det,N_states))
-    !call save_wavefunction_cap(tmp_cap)
+    allocate(tmp_cap(N_det,N_states))
+    call save_wavefunction_cap(tmp_cap)
   endif
 
   call ezfio_has_hartree_fock_energy(has)
@@ -69,9 +74,9 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call diagonalize_CI
     call save_wavefunction
     if (do_cap) then
-      !call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
+      call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
       call cap()
-      !deallocate(tmp_cap)
+      deallocate(tmp_cap)
     endif
   endif
 
@@ -144,11 +149,11 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call save_wavefunction
     call save_energy(psi_energy_with_nucl_rep, zeros)
     if (do_cap) then
-      !call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
-      !deallocate(tmp_cap)
+      call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
+      deallocate(tmp_cap)
       call cap()
-      !allocate(tmp_cap(N_states,N_det))
-      !call save_wavefunction_cap(tmp_cap)
+      allocate(tmp_cap(N_states,N_det))
+      call save_wavefunction_cap(tmp_cap)
     endif
     if (qp_stop()) exit
   enddo
@@ -167,9 +172,9 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     if (cap_pt2 .and. do_cap) then
         call build_psi_coef_cap_sorted(psi_cap_coef)
     endif
-    !if (do_cap) then
-    !  deallocate(tmp_cap)
-    !endif
+    if (do_cap) then
+      deallocate(tmp_cap)
+    endif
     call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0) ! Stochastic PT2
 
     call save_energy(psi_energy_with_nucl_rep, pt2_data % pt2)

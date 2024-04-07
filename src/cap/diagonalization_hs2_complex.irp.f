@@ -576,11 +576,11 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
         double precision :: omax
         logical :: used
         logical, allocatable :: ok(:)
-        double precision, allocatable :: overlp(:,:)
+        complex*16, allocatable :: overlp(:,:)
 
         allocate(overlp(shift2,N_st),ok(shift2))
 
-        overlp = 0d0
+        overlp = (0d0,0d0)
         do j = 1, shift2-1, N_st_diag
 
           ! Computes some states from the guess vectors
@@ -596,7 +596,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
           do l = 1, N_st
             do k = 1, N_st_diag
               do i = 1, sze
-                overlp(k+j-1,l) += dble(u_in(i,l)) * dble(U(i,shift2+k))
+                !overlp(k+j-1,l) += dble(u_in(i,l)) * dble(U(i,shift2+k))
+                overlp(k+j-1,l) += u_in(i,l) * U(i,shift2+k)
               enddo
             enddo
           enddo
@@ -619,8 +620,8 @@ subroutine davidson_diag_hjj_sjj_complex(dets_in,u_in,H_jj,s2_out,energies,dim_i
             enddo
 
             ! Maximum overlap
-            if ((dabs(overlp(k,l)) > omax) .and. (.not. used) .and. state_ok(k)) then
-              omax = dabs(overlp(k,l))
+            if ((cdabs(overlp(k,l)) > omax) .and. (.not. used) .and. state_ok(k)) then
+              omax = cdabs(overlp(k,l))
               idx = k
             endif
           enddo
