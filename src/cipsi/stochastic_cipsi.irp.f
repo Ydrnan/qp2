@@ -4,7 +4,7 @@ subroutine run_stochastic_cipsi(Ev,PT2)
   BEGIN_DOC
 ! Selected Full Configuration Interaction with Stochastic selection and PT2.
   END_DOC
-  integer                        :: i,j,k
+  integer                        :: i,j,k,l
   double precision, intent(out)  :: Ev(N_states), PT2(N_states) 
   double precision, allocatable  :: zeros(:)
   integer                        :: to_select
@@ -15,6 +15,7 @@ subroutine run_stochastic_cipsi(Ev,PT2)
   double precision :: rss
   double precision, external :: memory_of_double
   complex*16, allocatable :: tmp_cap(:,:)
+  integer(bit_kind), allocatable :: tmp_det(:,:,:)
   PROVIDE H_apply_buffer_allocated distributed_davidson mo_two_e_integrals_in_map
 
   threshold_generators = 1.d0
@@ -51,9 +52,11 @@ subroutine run_stochastic_cipsi(Ev,PT2)
             psi_cap_coef(i,k) = dcmplx(psi_coef(i,k),0d0)
         enddo
     enddo
+    touch psi_cap_coef
     call cap()
-    allocate(tmp_cap(N_det,N_states))
-    call save_wavefunction_cap(tmp_cap)
+    allocate(tmp_cap(N_det,N_states), tmp_det(N_int,2,N_det))
+    tmp_cap = psi_cap_coef
+    tmp_det = psi_det
   endif
 
   call ezfio_has_hartree_fock_energy(has)
@@ -73,11 +76,22 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     endif
     call diagonalize_CI
     call save_wavefunction
+
     if (do_cap) then
-      call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
+      do i = 1, size(tmp_cap,1)
+        psi_cap_coef(i,:) = tmp_cap(i,:)
+      enddo
+      touch psi_cap_coef
+
       call cap()
-      deallocate(tmp_cap)
+
+      deallocate(tmp_cap,tmp_det)
+      allocate(tmp_cap(N_det,N_states), tmp_det(N_int,2,N_det))
+
+      tmp_cap = psi_cap_coef
+      tmp_det = psi_det
     endif
+
   endif
 
   double precision :: correlation_energy_ratio
@@ -149,11 +163,85 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call save_wavefunction
     call save_energy(psi_energy_with_nucl_rep, zeros)
     if (do_cap) then
-      call read_wavefunction_cap(tmp_cap, size(tmp_cap,1))
-      deallocate(tmp_cap)
+      integer(bit_kind), allocatable :: l_det(:,:,:), l_prev_det(:,:,:)
+      integer, allocatable :: key(:), prev_key(:)
+      integer :: idx
+      logical :: ok
+
+      allocate(l_det(N_int,2,N_det),key(N_det))
+      allocate(prev_key(size(tmp_cap,1)))
+
+      ! To match the new order of psi_det...
+      l_det = psi_det
+      do i = 1, N_det
+        key(i) = i
+      enddo
+      idx = 1
+      call recursive_int_sort(l_det,key,N_det,N_int,idx)
+
+      do i = 1, size(tmp_cap,1)
+        prev_key(i) = i
+      enddo
+      idx = 1
+      call recursive_int_sort(tmp_det,prev_key,size(tmp_cap,1),N_int,idx)
+
+      psi_cap_coef = (0d0,0d0)
+      idx = 1
+      do i = 1, size(tmp_cap,1)
+        do l = idx, N_det
+
+          ok = .True.
+          do j = 1, 2
+            do k = 1, N_int
+              if (l_det(k,j,l) /= tmp_det(k,j,i)) then
+                ok = .False.
+                exit
+              endif
+            enddo
+          enddo
+
+          if (ok) then
+            psi_cap_coef(key(l),:) = tmp_cap(prev_key(i),:)
+            idx = l+1
+            exit
+          endif
+
+        enddo
+      enddo
+
+      deallocate(key,prev_key,l_det)
+
+!      do i = 1, size(tmp_cap,1)
+!        do l = 1, N_det
+!          !call print_det(tmp_det(1,1,i),N_int)
+!          !call print_det(psi_det(1,1,l),N_int)
+!          ok = .True.
+!          do j = 1, 2
+!            do k = 1, N_int
+!              if (psi_det(k,j,l) /= tmp_det(k,j,i)) then
+!                ok = .False.
+!                exit
+!              endif
+!            enddo
+!          enddo
+!          !print*, ok
+!          !print*,''
+!          if (ok) then
+!            !print*,l
+!            psi_cap_coef(l,:) = tmp_cap(i,:)
+!            exit
+!          endif
+!        enddo
+!      enddo
+
+      touch psi_cap_coef
       call cap()
-      allocate(tmp_cap(N_states,N_det))
-      call save_wavefunction_cap(tmp_cap)
+
+      deallocate(tmp_cap,tmp_det)
+      allocate(tmp_cap(N_det,N_states), tmp_det(N_int,2,N_det))
+
+      tmp_cap = psi_cap_coef
+      tmp_det = psi_det
     endif
     if (qp_stop()) exit
   enddo

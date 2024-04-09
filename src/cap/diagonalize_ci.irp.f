@@ -432,6 +432,9 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
    touch psi_cap_coef
    !call selection(eigvec)
    !call full_pt2()
+   if (cap_write_wf) then
+     call write_wf()
+   endif
 
    deallocate(W,eigvec,eige,h,S_d,rdm_cap,tmp_w,residue)
 

@@ -18,7 +18,11 @@ subroutine cap()
       allocate(psi_cap(N_det,N_states),energy(N_states), l_energy(N_states,n_steps_cap))
       allocate(corr(N_states), l_corr(N_states,n_steps_cap))
 
-      psi_cap = psi_cap_coef !dcmplx(psi_coef,0d0)
+      if (sum(cdabs(psi_cap_coef)) < 1d-6) then
+        psi_cap = dcmplx(psi_coef,0d0)
+      else
+        psi_cap = psi_cap_coef
+      endif
 
       print*,'eta_cap',eta_cap
       eta_cap_save = eta_cap

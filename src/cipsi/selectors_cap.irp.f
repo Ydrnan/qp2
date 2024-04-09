@@ -114,7 +114,7 @@ end
 subroutine save_wavefunction_cap(coefs)
   implicit none
 
-  complex*16, intent(out) :: coefs(N_states,N_det)
+  complex*16, intent(out) :: coefs(N_det,N_states)
   integer :: i,k
 
   do k = 1, N_states
@@ -129,7 +129,7 @@ subroutine read_wavefunction_cap(coefs,n)
   implicit none
 
   integer, intent(in) :: n
-  complex*16, intent(in) :: coefs(N_states,n)
+  complex*16, intent(in) :: coefs(n,N_states)
   integer :: i,k
 
   do k = 1, N_states
