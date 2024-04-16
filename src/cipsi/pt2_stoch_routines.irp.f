@@ -140,8 +140,6 @@ subroutine ZMQ_pt2(E, pt2_data, pt2_data_err, relative_error, N_in)
 
   if (N_det <= max(4,N_states) .or. pt2_N_teeth < 2) then
     call ZMQ_selection(N_in, pt2_data)
-    print*,'#####################################',pt2_data % pt2, pt2_data % pt2_im
-!, pt2_data % pt2_im
   else
 
     N = max(N_in,1) * N_states
