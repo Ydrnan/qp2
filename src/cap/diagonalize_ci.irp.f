@@ -303,12 +303,12 @@ subroutine diagonalize_ci_cap(u_in, energy, corr)
 
    eigvec = ci_eigenvectors_cap(:,1:N_states)
 
-   print*,'max imag', maxval(dimag(eigvec))
+   !print*,'max imag', maxval(dimag(eigvec))
    !call overlap_cap(eigvec)
    call qr_decomposition_c(eigvec,size(eigvec,1),N_det,N_states)
 
-   print*,'max imag', maxval(dimag(eigvec))
-   print*,'sum',sum(dble(eigvec)), sum(dimag(eigvec))
+   !print*,'max imag', maxval(dimag(eigvec))
+   !print*,'sum',sum(dble(eigvec)), sum(dimag(eigvec))
 
    call overlap_cap(eigvec)
 

@@ -164,7 +164,7 @@ subroutine cap()
     else
 
       print*,''
-      print*,'Parameters for cap calculation not setted correctly.'
+      print*,'Parameters for cap calculation not set correctly.'
       if (cap_onset_x < 0d0) then
         print*,'cap_onset_x must be >= 0d0'
       endif

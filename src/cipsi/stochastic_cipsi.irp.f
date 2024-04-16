@@ -138,7 +138,9 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call save_energy(psi_energy_with_nucl_rep, pt2_data % pt2)
 
     call increment_n_iter(psi_energy_with_nucl_rep, pt2_data)
-    call print_extrapolated_energy()
+    if (.not. cap_pt2) then
+        call print_extrapolated_energy()
+    endif
     call print_mol_properties()
     call write_cipsi_json(pt2_data,pt2_data_err)
 
