@@ -272,6 +272,7 @@ subroutine fill_buffer_cap_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, f
         pt2_data % variance(istate)  = pt2_data % variance(istate) + dble(alpha_h_psi * alpha_h_psi)
         pt2_data % pt2(istate)       = pt2_data % pt2(istate)      + dble(e_pert(istate))
         pt2_data % pt2_im(istate)    = pt2_data % pt2_im(istate)   + dimag(e_pert(istate))
+        pt2_data % pt2_norm(istate)  = pt2_data % pt2_norm(istate) + dabs(dimag(e_pert(istate)))
         !if (dabs(dble(e_pert(istate))) > 1d-3) then
         !    print*,dble(e_pert(istate))
         !endif
@@ -295,24 +296,36 @@ subroutine fill_buffer_cap_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, f
 !        endif
 !!!DEBUG
 
+        !if (dabs(dble(e_pert(istate))) > 1d-5) then
+        !    print*,1,e_pert(istate)
+        !endif
+        if (pt2_im_match) then
+          e_pert(istate) = dcmplx(dble(e_pert(istate))*2d0*(1d0-pt2_im_weight),dimag(e_pert(istate))*2d0*pt2_im_weight*pt2_im_match_coef(istate))
+        else
+          e_pert(istate) = dcmplx(dble(e_pert(istate))*2d0*(1d0-pt2_im_weight),dimag(e_pert(istate))*2d0*pt2_im_weight)
+        endif
+        !if (dabs(dble(e_pert(istate))) > 1d-5) then
+        !    print*,2,e_pert(istate)
+        !endif
+
         select case (weight_selection)
 
-          case(5)
-            ! Variance selection
-            if (h0_type == 'CFG') then
-              w = min(w, - cdabs(alpha_h_psi * alpha_h_psi) * s_weight(istate,istate)) &
-                / c0_weight(istate)
-            else
-              w = min(w, - cdabs(alpha_h_psi * alpha_h_psi) * s_weight(istate,istate))
-            endif
+          !case(5)
+          !  ! Variance selection
+          !  if (h0_type == 'CFG') then
+          !    w = min(w, - cdabs(alpha_h_psi * alpha_h_psi) * s_weight(istate,istate)) &
+          !      / c0_weight(istate)
+          !  else
+          !    w = min(w, - cdabs(alpha_h_psi * alpha_h_psi) * s_weight(istate,istate))
+          !  endif
 
-          case(6)
-            if (h0_type == 'CFG') then
-              w = min(w,- cdabs(coef(istate) * coef(istate)) * s_weight(istate,istate)) &
-                / c0_weight(istate)
-            else
-              w = min(w,- cdabs(coef(istate) * coef(istate)) * s_weight(istate,istate))
-            endif
+          !case(6)
+          !  if (h0_type == 'CFG') then
+          !    w = min(w,- cdabs(coef(istate) * coef(istate)) * s_weight(istate,istate)) &
+          !      / c0_weight(istate)
+          !  else
+          !    w = min(w,- cdabs(coef(istate) * coef(istate)) * s_weight(istate,istate))
+          !  endif
 
           case default
             ! Energy selection

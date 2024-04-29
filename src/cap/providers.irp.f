@@ -23,3 +23,12 @@ BEGIN_PROVIDER [ complex*16, psi_cap_coef, (N_det,N_states) ]
 
 END_PROVIDER
 
+BEGIN_PROVIDER [ double precision, pt2_im_match_coef, (N_states) ]
+   implicit none
+   BEGIN_DOC
+   ! Coefficient to match real and imaginary part of the pt2 in the selection process
+   END_DOC
+
+   pt2_im_match_coef = 1d0
+
+END_PROVIDER

@@ -7,6 +7,7 @@ subroutine pt2_alloc(pt2_data,N)
 
   allocate(pt2_data % pt2(N)           &
           ,pt2_data % pt2_im(N)        &
+          ,pt2_data % pt2_norm(N)      &
           ,pt2_data % variance(N)      &
           ,pt2_data % rpt2(N)          &
           ,pt2_data % overlap(N,N)     &
@@ -14,6 +15,7 @@ subroutine pt2_alloc(pt2_data,N)
 
   pt2_data % pt2(:)           = 0.d0
   pt2_data % pt2_im(:)        = 0.d0
+  pt2_data % pt2_norm(:)      = 0.d0
   pt2_data % variance(:)      = 0.d0
   pt2_data % rpt2(:)          = 0.d0
   pt2_data % overlap(:,:)     = 0.d0
@@ -26,6 +28,7 @@ subroutine pt2_dealloc(pt2_data)
   type(pt2_type), intent(inout) :: pt2_data
   deallocate(pt2_data % pt2         &
             ,pt2_data % pt2_im      &
+            ,pt2_data % pt2_norm    &
             ,pt2_data % variance    &
             ,pt2_data % rpt2        &
             ,pt2_data % overlap     &
@@ -46,6 +49,7 @@ subroutine pt2_add(p1, w, p2)
 
     p1 % pt2(:)            = p1 % pt2(:)           + p2 % pt2(:)
     p1 % pt2_im(:)         = p1 % pt2_im(:)        + p2 % pt2_im(:)
+    p1 % pt2_norm(:)       = p1 % pt2_norm(:)      + p2 % pt2_norm(:)
     p1 % rpt2(:)           = p1 % rpt2(:)          + p2 % rpt2(:)
     p1 % variance(:)       = p1 % variance(:)      + p2 % variance(:)
     p1 % overlap(:,:)      = p1 % overlap(:,:)     + p2 % overlap(:,:)
@@ -54,6 +58,7 @@ subroutine pt2_add(p1, w, p2)
 
     p1 % pt2(:)            = p1 % pt2(:)           + w * p2 % pt2(:)
     p1 % pt2_im(:)         = p1 % pt2_im(:)        + w * p2 % pt2_im(:)
+    p1 % pt2_norm(:)       = p1 % pt2_norm(:)      + w * p2 % pt2_norm(:)
     p1 % rpt2(:)           = p1 % rpt2(:)          + w * p2 % rpt2(:)
     p1 % variance(:)       = p1 % variance(:)      + w * p2 % variance(:)
     p1 % overlap(:,:)      = p1 % overlap(:,:)     + w * p2 % overlap(:,:)
@@ -77,6 +82,7 @@ subroutine pt2_add2(p1, w, p2)
 
     p1 % pt2(:)           = p1 % pt2(:)           + p2 % pt2(:)           * p2 % pt2(:)
     p1 % pt2_im(:)        = p1 % pt2_im(:)        + p2 % pt2_im(:)        * p2 % pt2_im(:)
+    p1 % pt2_norm(:)      = p1 % pt2_norm(:)      + p2 % pt2_norm(:)      * p2 % pt2_norm(:)
     p1 % rpt2(:)          = p1 % rpt2(:)          + p2 % rpt2(:)          * p2 % rpt2(:)
     p1 % variance(:)      = p1 % variance(:)      + p2 % variance(:)      * p2 % variance(:)
     p1 % overlap(:,:)     = p1 % overlap(:,:)     + p2 % overlap(:,:)     * p2 % overlap(:,:)
@@ -85,6 +91,7 @@ subroutine pt2_add2(p1, w, p2)
 
     p1 % pt2(:)           = p1 % pt2(:)           + w * p2 % pt2(:)           * p2 % pt2(:)
     p1 % pt2_im(:)        = p1 % pt2_im(:)        + w * p2 % pt2_im(:)        * p2 % pt2_im(:)
+    p1 % pt2_norm(:)      = p1 % pt2_norm(:)      + w * p2 % pt2_norm(:)      * p2 % pt2_norm(:)
     p1 % rpt2(:)          = p1 % rpt2(:)          + w * p2 % rpt2(:)          * p2 % rpt2(:)
     p1 % variance(:)      = p1 % variance(:)      + w * p2 % variance(:)      * p2 % variance(:)
     p1 % overlap(:,:)     = p1 % overlap(:,:)     + w * p2 % overlap(:,:)     * p2 % overlap(:,:)
@@ -108,6 +115,8 @@ subroutine pt2_serialize(pt2_data, n, x)
   k=n
   x(k+1:k+n)     =  pt2_data % pt2_im(1:n)
   k=k+n
+  x(k+1:k+n)     =  pt2_data % pt2_norm(1:n)
+  k=k+n
   x(k+1:k+n)     =  pt2_data % rpt2(1:n)
   k=k+n
   x(k+1:k+n)     =  pt2_data % variance(1:n)
@@ -129,6 +138,8 @@ subroutine pt2_deserialize(pt2_data, n, x)
   pt2_data % pt2(1:n)           =   x(1:n)
   k=n
   pt2_data % pt2_im(1:n)        =   x(k+1:k+n)
+  k=k+n
+  pt2_data % pt2_norm(1:n)      =   x(k+1:k+n)
   k=k+n
   pt2_data % rpt2(1:n)          =   x(k+1:k+n)
   k=k+n
