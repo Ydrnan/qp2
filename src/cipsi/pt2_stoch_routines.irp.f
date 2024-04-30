@@ -691,11 +691,11 @@ subroutine pt2_collector(zmq_socket_pull, E, relative_error, pt2_data, pt2_data_
     end if
   end do
 
-  if (cap_pt2) then
-    pt2_im_match_coef(1:N_states) = dabs(pt2_data % pt2(1:N_states) / pt2_data % pt2_norm(1:N_states))
-    TOUCH pt2_im_match_coef
-    print*,'Matching pt2_im coef:',pt2_im_match_coef
-  endif
+  !if (cap_pt2) then
+  !  pt2_im_match_coef(1:N_states) = dabs(pt2_data % pt2(1:N_states) / pt2_data % pt2_norm(1:N_states))
+  !  TOUCH pt2_im_match_coef
+  !  print*,'Matching pt2_im coef:',pt2_im_match_coef
+  !endif
 
   do i=1,N_det_generators
     call pt2_dealloc(pt2_data_I(i))

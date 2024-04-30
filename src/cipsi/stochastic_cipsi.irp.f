@@ -111,22 +111,22 @@ subroutine run_stochastic_cipsi(Ev,PT2)
 
     Ev(1:N_states) = psi_energy_with_nucl_rep(1:N_states)
 
-    if (do_cap) then
+    if (do_cap .and. cap_pt2) then
         call build_psi_coef_cap_sorted(psi_cap_coef)
     endif
-    if (do_cap .and. .not. cap_pt2) then
-      call pt2_dealloc(pt2_data)
-      call pt2_dealloc(pt2_data_err)
-      call pt2_alloc(pt2_data, N_states)
-      call pt2_alloc(pt2_data_err, N_states)
-      cap_pt2 = .True.
-      touch cap_pt2
-      call ZMQ_pt2(psi_energy_with_nucl_rep,pt2_data,pt2_data_err,relative_error,0) ! Stochastic PT2 without selection
-      cap_pt2 = .False.
-      touch cap_pt2
-      psi_coef = psi_coef_tmpsave
-      touch psi_coef
-    endif
+    !if (do_cap .and. .not. cap_pt2) then
+    !  call pt2_dealloc(pt2_data)
+    !  call pt2_dealloc(pt2_data_err)
+    !  call pt2_alloc(pt2_data, N_states)
+    !  call pt2_alloc(pt2_data_err, N_states)
+    !  cap_pt2 = .True.
+    !  touch cap_pt2
+    !  call ZMQ_pt2(psi_energy_with_nucl_rep,pt2_data,pt2_data_err,relative_error,0) ! Stochastic PT2 without selection
+    !  cap_pt2 = .False.
+    !  touch cap_pt2
+    !  psi_coef = psi_coef_tmpsave
+    !  touch psi_coef
+    !endif
     call pt2_dealloc(pt2_data)
     call pt2_dealloc(pt2_data_err)
     call pt2_alloc(pt2_data, N_states)
@@ -272,26 +272,27 @@ subroutine run_stochastic_cipsi(Ev,PT2)
     call pt2_dealloc(pt2_data_err)
     call pt2_alloc(pt2_data, N_states)
     call pt2_alloc(pt2_data_err, N_states)
-    if (do_cap) then
+    if (do_cap .and. cap_pt2) then
         call build_psi_coef_cap_sorted(psi_cap_coef)
     endif
-    if (do_cap) then
+    if (do_cap .and. cap_pt2) then
       deallocate(tmp_cap)
     endif
-    if (do_cap .and. .not. cap_pt2) then
-      cap_pt2 = .True.
-      touch cap_pt2
-      call ZMQ_pt2(psi_energy_with_nucl_rep,pt2_data,pt2_data_err,relative_error,0) ! Stochastic PT2 without selection
-      cap_pt2 = .False.
-      touch cap_pt2
-      call pt2_dealloc(pt2_data)
-      call pt2_dealloc(pt2_data_err)
-      call pt2_alloc(pt2_data, N_states)
-      call pt2_alloc(pt2_data_err, N_states)
-      psi_coef = psi_coef_tmpsave
-      touch psi_coef
-      call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0) ! Stochastic PT2
-    else
+    if (do_cap .and.  cap_pt2) then
+    !if (do_cap .and. .not. cap_pt2) then
+    !  cap_pt2 = .True.
+    !  touch cap_pt2
+    !  call ZMQ_pt2(psi_energy_with_nucl_rep,pt2_data,pt2_data_err,relative_error,0) ! Stochastic PT2 without selection
+    !  cap_pt2 = .False.
+    !  touch cap_pt2
+    !  call pt2_dealloc(pt2_data)
+    !  call pt2_dealloc(pt2_data_err)
+    !  call pt2_alloc(pt2_data, N_states)
+    !  call pt2_alloc(pt2_data_err, N_states)
+    !  psi_coef = psi_coef_tmpsave
+    !  touch psi_coef
+    !  call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0) ! Stochastic PT2
+    !else
       call ZMQ_pt2(psi_energy_with_nucl_rep, pt2_data, pt2_data_err, relative_error, 0) ! Stochastic PT2
     endif
 

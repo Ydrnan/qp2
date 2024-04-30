@@ -296,17 +296,7 @@ subroutine fill_buffer_cap_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, f
 !        endif
 !!!DEBUG
 
-        !if (dabs(dble(e_pert(istate))) > 1d-5) then
-        !    print*,1,e_pert(istate)
-        !endif
-        if (pt2_im_match) then
-          e_pert(istate) = dcmplx(dble(e_pert(istate))*2d0*(1d0-pt2_im_weight),dimag(e_pert(istate))*2d0*pt2_im_weight*pt2_im_match_coef(istate))
-        else
-          e_pert(istate) = dcmplx(dble(e_pert(istate))*2d0*(1d0-pt2_im_weight),dimag(e_pert(istate))*2d0*pt2_im_weight)
-        endif
-        !if (dabs(dble(e_pert(istate))) > 1d-5) then
-        !    print*,2,e_pert(istate)
-        !endif
+        double precision :: tmp_val
 
         select case (weight_selection)
 
@@ -329,10 +319,11 @@ subroutine fill_buffer_cap_$DOUBLE(i_generator, sp, h1, h2, bannedOrb, banned, f
 
           case default
             ! Energy selection
+            tmp_val = (1d0-pt2_im_weight)*dble(e_pert(istate))**2 + pt2_im_weight*dimag(e_pert(istate))**2 
             if (h0_type == 'CFG') then
-              w = min(w, -cdabs((e_pert(istate))) * s_weight(istate,istate)) / c0_weight(istate)
+              w = min(w, -tmp_val * s_weight(istate,istate)) / c0_weight(istate)
             else
-              w = min(w, -cdabs((e_pert(istate))) * s_weight(istate,istate))
+              w = min(w, -tmp_val * s_weight(istate,istate))
             endif
 
         end select
