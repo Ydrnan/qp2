@@ -115,7 +115,7 @@ subroutine overlap_bourrin_spread_cap(A_center,B_center,alpha,beta,power_A,power
   do i = 1, nx
     x += dx
     if (dsqrt((x - barycenter_x)**2) >= cap_x) then
-      overlap_x += (x-A_center)**(power_A) * (x-B_center)**(power_B) * dexp(-p * (x-P_center)*(x-P_center)) * (dabs(x) - cap_x)**2
+      overlap_x += (x-A_center)**(power_A) * (x-B_center)**(power_B) * dexp(-p * (x-P_center)*(x-P_center)) * (dabs(x-barycenter_x) - cap_x)**2
     endif
   enddo
   overlap_x *= factor * dx
