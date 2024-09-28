@@ -291,6 +291,7 @@ END_PROVIDER
 &BEGIN_PROVIDER [ double precision, psi_coef_sorted, (psi_det_size,N_states) ]
 &BEGIN_PROVIDER [ double precision, psi_average_norm_contrib_sorted, (psi_det_size) ]
 &BEGIN_PROVIDER [ integer, psi_det_sorted_order, (psi_det_size) ]
+&BEGIN_PROVIDER [ integer, psi_det_sorted_ordering, (psi_det_size) ]
    implicit none
    BEGIN_DOC
    ! Wave function sorted by determinants contribution to the norm (state-averaged)
@@ -317,6 +318,9 @@ END_PROVIDER
    enddo
    do i=1,N_det
      psi_det_sorted_order(iorder(i)) = i
+   enddo
+   do i=1,N_det
+     psi_det_sorted_ordering(i) = iorder(i)
    enddo
 
    psi_det_sorted(:,:,N_det+1:psi_det_size) = 0_bit_kind

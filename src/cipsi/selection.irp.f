@@ -179,6 +179,7 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
   logical, allocatable                  :: banned(:,:,:), bannedOrb(:,:)
   double precision, allocatable         :: coef_fullminilist_rev(:,:)
   double precision, allocatable         :: mat(:,:,:), hij_cache(:,:,:)
+  complex*16, allocatable               :: mat_c(:,:,:)
 
 
   PROVIDE psi_bilinear_matrix_columns_loc psi_det_alpha_unique psi_det_beta_unique
@@ -319,7 +320,13 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
 
 
   allocate(banned(mo_num, mo_num,2), bannedOrb(mo_num, 2))
-  allocate(mat(N_states, mo_num, mo_num))
+
+  if (cap_pt2 .and. do_cap) then
+    allocate(mat_c(N_states, mo_num, mo_num))
+  else
+    allocate(mat(N_states, mo_num, mo_num))
+  endif
+
   maskInd = -1
 
   do s1 = 1, 2
@@ -519,9 +526,15 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
             call spot_isinwf(mask, fullminilist, i_generator, fullinteresting(0), banned, fullMatch, fullinteresting)
             if(fullMatch) cycle
 
-            call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting, hij_cache)
+            if (cap_pt2 .and. do_cap) then
+              call splash_pq_cap(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat_c, interesting)
+              call fill_buffer_cap_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat_c, buf)
+            else
+              call splash_pq(mask, sp, minilist, i_generator, interesting(0), bannedOrb, banned, mat, interesting, hij_cache)
 
-            call fill_buffer_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat, buf)
+              call fill_buffer_double(i_generator, sp, h1, h2, bannedOrb, banned, fock_diag_tmp, E0, pt2_data, mat, buf)
+            endif
+
           end if
 
 
@@ -535,7 +548,12 @@ subroutine select_singles_and_doubles(i_generator, hole_mask, particle_mask, foc
     enddo
   enddo
   deallocate(preinteresting, prefullinteresting, interesting, fullinteresting)
-  deallocate(banned, bannedOrb, mat, hij_cache)
+  deallocate(banned, bannedOrb, hij_cache)
+  if (cap_pt2 .and. do_cap) then
+    deallocate(mat_c)
+  else
+    deallocate(mat)
+  endif
 end subroutine
 
 BEGIN_TEMPLATE
